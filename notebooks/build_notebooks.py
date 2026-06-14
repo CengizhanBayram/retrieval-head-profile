@@ -17,7 +17,34 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 NB_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = NB_DIR.parent / "configs" / "panel.yaml"
+
+# Conservative per-model wall-clock estimates on an L4 (8-bit). Used only to size
+# the chunks so each notebook finishes well inside a 24 h Colab session; the
+# TIME_BUDGET_HOURS guard inside every notebook is the hard backstop.
+EST_PROFILE_H = 3.5
+EST_BEHAVIOR_H = 2.5
+PROFILE_CHUNK = 5          # 5 × 3.5 h ≈ 17.5 h nominal
+BEHAVIOR_CHUNK = 7         # 7 × 2.5 h ≈ 17.5 h nominal
+# Backstop guard. Checked BEFORE each model, so the worst-case finish is
+# budget + one model (≈3.5 h) — kept under 24 h with margin.
+TIME_BUDGET_HOURS = 20
+
+
+def panel_model_order() -> list[str]:
+    """Ordered panel keys, core models first (so they finish early)."""
+    cfg = yaml.safe_load(open(CONFIG_PATH, encoding="utf-8"))
+    models = cfg.get("models", {})
+    core = [k for k, v in models.items() if v.get("tier") == "core"]
+    rest = [k for k in models if k not in core]
+    return core + rest
+
+
+def chunks(seq: list, size: int) -> list[list]:
+    return [seq[i:i + size] for i in range(0, len(seq), size)]
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +197,7 @@ from rhp.panel import load_panel, model_cfg
 config = load_panel(CONFIG)
 PILOT = ['llama32_3b', 'qwen25_7b', 'olmo2_7b']
 SEED = 42
-TIME_BUDGET_HOURS = 11.0          # under the free-tier session limit; Pro allows 24
+TIME_BUDGET_HOURS = 16.0          # 3 models × ~6 h (profile+behaviour) ≈ 18 h < 24 h
 
 prof_dir = Path(RESULTS_DIR) / 'profile'; prof_dir.mkdir(parents=True, exist_ok=True)
 beh_dir  = Path(RESULTS_DIR) / 'behavior'; beh_dir.mkdir(parents=True, exist_ok=True)
@@ -231,62 +258,90 @@ else:
 # Notebook 01 — panel profile (Block A, E1–E5)
 # ---------------------------------------------------------------------------
 
-def nb_panel_profile() -> dict:
+def nb_profile_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
+    """One profile notebook for a fixed chunk of models (sized to < 24 h)."""
+    est = len(models) * EST_PROFILE_H
+    letter = chr(ord("A") + idx)
+    is_first = idx == 0
     cells = [md(
-        "# 01 · Panel profile (Block A · E1–E5)\n"
-        "Extracts the standardised **retrieval-head profile** for the panel: two "
-        "detectors (E1), frequency signature (E2), knockout double-dissociation "
-        "(E3), concentration + layer profile (E4), GQA control (E5).\n\n"
-        "**24 h budget / resume:** each model writes `profile/<model>_seed<seed>.json` "
-        "to Drive and is skipped on re-run. Set `MODEL_SUBSET` to the chunk you want "
-        "this session to do (≈5 h/model). Re-run across sessions until the panel is "
-        "complete.")]
+        f"# Profile · chunk {letter} of {n_chunks} (Block A · E1–E5)\n"
+        f"Extracts the **retrieval-head profile** for **{len(models)} models** "
+        f"(≈{est:.0f} h on an L4 — under one 24 h Colab session): two detectors "
+        f"(E1), frequency signature + dose patch (E2/E12), knockout (E3), "
+        f"concentration + layer profile (E4), GQA control (E5).\n\n"
+        f"**This chunk's models:**\n\n`{models}`\n\n"
+        f"Resume-safe: each model writes `profile/<model>_seed<seed>.json` to "
+        f"Drive and is skipped on re-run. The `TIME_BUDGET_HOURS={TIME_BUDGET_HOURS}` "
+        f"guard stops the loop before the Colab limit; just re-run to finish any "
+        f"remainder. Run chunks A→{chr(ord('A')+n_chunks-1)} in any order / parallel "
+        f"Colab accounts.")]
     cells += setup_cells()
-    cells.append(md("## Task A — profile a subset of the panel\n"
-                    "Edit `MODEL_SUBSET` and `TIME_BUDGET_HOURS`. Options: "
-                    "`core_models(config)` (the 5 core models), "
-                    "`all_model_keys(config)` (everything incl. quant rings), or an "
-                    "explicit list of keys."))
-    cells.append(code("""
+    cells.append(md(f"## Profile this chunk ({len(models)} models, seed 42)"))
+    cells.append(code(f"""
 import time
 from pathlib import Path
 from scripts._common import run_profile_for_model, save_json
-from rhp.panel import load_panel, model_cfg, core_models, all_model_keys, models_by_tier
+from rhp.panel import load_panel, model_cfg
 
 config = load_panel(CONFIG)
-print('panel keys:', all_model_keys(config))
-
-# --- choose this session's work ---
-MODEL_SUBSET = core_models(config)        # e.g. ['qwen25_7b','llama31_8b', ...]
+MODEL_SUBSET = {models}
 SEED = 42
 CONTEXT = 4096
-TIME_BUDGET_HOURS = 11.0
+TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}    # hard backstop < 24 h Colab limit
 
 OUT = Path(RESULTS_DIR) / 'profile'; OUT.mkdir(parents=True, exist_ok=True)
 start = time.time()
 for key in MODEL_SUBSET:
-    out = OUT / f'{key}_seed{SEED}.json'
+    out = OUT / f'{{key}}_seed{{SEED}}.json'
     if out.exists():
         print(key, 'done -> skip'); continue
     if time.time() - start > TIME_BUDGET_HOURS * 3600:
-        print('Time budget reached — re-run to resume at', key); break
+        print('Time budget reached — re-run this notebook to resume at', key); break
     try:
         res = run_profile_for_model(key, model_cfg(config, key), config,
                                     seed=SEED, context_length=CONTEXT)
         save_json(res, out)
         pr = res['profile']
-        print(f"{key}: heads={pr['n_heads']} copy={pr['n_heads_copy']} "
-              f"gini={pr['concentration']['gini']:.3f} "
-              f"freq_com={pr['scalars']['freq_com']} "
-              f"knock={pr['scalars']['knockout_drop']}")
+        print(f"{{key}}: heads={{pr['n_heads']}} copy={{pr['n_heads_copy']}} "
+              f"gini={{pr['concentration']['gini']:.3f}} "
+              f"freq_com={{pr['scalars']['freq_com']}} "
+              f"knock={{pr['scalars']['knockout_drop']}}  "
+              f"[{{(time.time()-start)/3600:.1f}} h elapsed]")
     except Exception as e:
         print(key, 'FAILED:', e)
-print('\\nElapsed %.1f h.' % ((time.time()-start)/3600))
+print('\\nChunk {letter} elapsed %.1f h.' % ((time.time()-start)/3600))
 """))
-    cells.append(md("## Extra seeds for the core models (R5)\n"
-                    "The 5 core models get 3 seeds. Re-run the task above with "
-                    "`SEED = 123` then `SEED = 2024` (and `MODEL_SUBSET = core_models(config)`)."))
-    cells.append(md("## Quick panel summary table"))
+    if is_first:
+        cells.append(md(
+            "## Extra seeds for the 5 core models (R5) — run after all chunks\n"
+            "The core models (`llama32_3b, llama31_8b, qwen25_3b, qwen25_7b, "
+            "gemma2_9b`) get 3 seeds. This cell does seeds 123 + 2024 for **just "
+            "the core** (≈18 h each seed → run as two more sessions if needed)."))
+        cells.append(code(f"""
+import time
+from pathlib import Path
+from scripts._common import run_profile_for_model, save_json
+from rhp.panel import load_panel, model_cfg, core_models
+
+config = load_panel(CONFIG)
+CORE = core_models(config)
+OUT = Path(RESULTS_DIR) / 'profile'; OUT.mkdir(parents=True, exist_ok=True)
+TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}
+for SEED in (123, 2024):
+    start = time.time()
+    for key in CORE:
+        out = OUT / f'{{key}}_seed{{SEED}}.json'
+        if out.exists(): print(key, SEED, 'done -> skip'); continue
+        if time.time() - start > TIME_BUDGET_HOURS*3600:
+            print('budget reached at', key, SEED); break
+        try:
+            save_json(run_profile_for_model(key, model_cfg(config, key), config,
+                      seed=SEED, context_length=4096), out)
+            print(key, 'seed', SEED, 'done')
+        except Exception as e:
+            print(key, SEED, 'FAILED:', e)
+"""))
+    cells.append(md("## Quick summary of everything profiled so far"))
     cells.append(code("""
 import json, glob, pandas as pd
 from pathlib import Path
@@ -296,7 +351,6 @@ for f in sorted(glob.glob(str(Path(RESULTS_DIR)/'profile'/'*_seed42.json'))):
     rows.append(dict(model=r['model'], family=r.get('family'),
                      n_heads=p['n_heads'], copy=p['n_heads_copy'],
                      gini=round(p['concentration']['gini'],3),
-                     layer_com=round(p['layer_profile']['layer_com_weighted'],3),
                      det_jacc=round(p['detector_agreement']['jaccard'],3),
                      freq_com=p['scalars']['freq_com'],
                      knock=p['scalars']['knockout_drop']))
@@ -309,38 +363,42 @@ print(pd.DataFrame(rows).to_string(index=False) if rows else 'No profiles yet.')
 # Notebook 02 — panel behaviour (Block B, E6–E7)
 # ---------------------------------------------------------------------------
 
-def nb_panel_behavior() -> dict:
+def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
+    """One behaviour notebook for a fixed chunk of models (sized to < 24 h)."""
+    est = len(models) * EST_BEHAVIOR_H
+    letter = chr(ord("A") + idx)
     cells = [md(
-        "# 02 · Panel behaviour (Block B · E6 NIAH + E7 RULER)\n"
-        "The behavioural target variables the profile must predict (RQ2): the NIAH "
-        "position/length sweep (E6) and the RULER subset — multi-key, multi-value, "
-        "variable tracking (E7).\n\n"
-        "Same 24 h budget / Drive-resume contract as notebook 01. "
-        "Writes `behavior/<model>_seed<seed>.json`. ≤3B models automatically get the "
-        "long-context lengths (8192/16384).")]
+        f"# Behaviour · chunk {letter} of {n_chunks} (Block B · E6 NIAH + E7 RULER)\n"
+        f"Behavioural targets the profile must predict (RQ2) for **{len(models)} "
+        f"models** (≈{est:.0f} h on an L4): the NIAH position/length sweep (E6) and "
+        f"the RULER subset — multi-key, multi-value, variable tracking (E7).\n\n"
+        f"**This chunk's models:**\n\n`{models}`\n\n"
+        f"Resume-safe to `behavior/<model>_seed<seed>.json`; "
+        f"`TIME_BUDGET_HOURS={TIME_BUDGET_HOURS}` backstop. ≤3B models automatically "
+        f"get the long-context lengths (8192/16384).")]
     cells += setup_cells()
-    cells.append(md("## Task B — behaviour for a subset of the panel"))
-    cells.append(code("""
+    cells.append(md(f"## Behaviour for this chunk ({len(models)} models, seed 42)"))
+    cells.append(code(f"""
 import time
 from pathlib import Path
 from scripts._common import run_behavior_for_model, save_json
-from rhp.panel import load_panel, model_cfg, core_models, all_model_keys
+from rhp.panel import load_panel, model_cfg
 
 config = load_panel(CONFIG)
-MODEL_SUBSET = core_models(config)
+MODEL_SUBSET = {models}
 SEED = 42
-TIME_BUDGET_HOURS = 11.0
+TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}
 DO_RULER = True
 
 small = config['niah'].get('context_lengths_small')
 OUT = Path(RESULTS_DIR) / 'behavior'; OUT.mkdir(parents=True, exist_ok=True)
 start = time.time()
 for key in MODEL_SUBSET:
-    out = OUT / f'{key}_seed{SEED}.json'
+    out = OUT / f'{{key}}_seed{{SEED}}.json'
     if out.exists():
         print(key, 'done -> skip'); continue
     if time.time() - start > TIME_BUDGET_HOURS * 3600:
-        print('Time budget reached — re-run to resume at', key); break
+        print('Time budget reached — re-run this notebook to resume at', key); break
     cfg = model_cfg(config, key)
     ctx = small if (small and any(t in key for t in ('3b','2b','1_6b','mini'))) else None
     try:
@@ -349,10 +407,12 @@ for key in MODEL_SUBSET:
         res['family'] = cfg.get('family')
         save_json(res, out)
         b = res['behavior']
-        print(f"{key}: NIAH overall={b['niah_overall']:.3f} worst_pos={b['niah_worst_pos']:.3f}")
+        print(f"{{key}}: NIAH overall={{b['niah_overall']:.3f}} "
+              f"worst_pos={{b['niah_worst_pos']:.3f}}  "
+              f"[{{(time.time()-start)/3600:.1f}} h elapsed]")
     except Exception as e:
         print(key, 'FAILED:', e)
-print('\\nElapsed %.1f h.' % ((time.time()-start)/3600))
+print('\\nChunk {letter} elapsed %.1f h.' % ((time.time()-start)/3600))
 """))
     return notebook(cells)
 
@@ -391,7 +451,7 @@ from rhp.panel import load_panel, model_cfg, lineage_chain, lineage_sibling
 config = load_panel(CONFIG)
 LINEAGES = ['qwen', 'llama', 'gemma', 'mistral']     # edit to taste
 SEED = 42
-TIME_BUDGET_HOURS = 11.0
+TIME_BUDGET_HOURS = 18.0          # backstop; most base/instruct are already on Drive from the chunks
 
 # collect every model needed by the chosen lineages (chain rings + siblings)
 needed = []
@@ -801,20 +861,41 @@ print('O5 is a reanalysis hook: when you run E1 with return_mass=True, save the 
 # Emit
 # ---------------------------------------------------------------------------
 
+def _clean_old_notebooks() -> None:
+    """Remove previously-emitted .ipynb so a re-chunk doesn't leave stragglers."""
+    for f in NB_DIR.glob("*_colab.ipynb"):
+        f.unlink()
+
+
 def main() -> None:
-    notebooks = {
-        "00_pilot_colab.ipynb": nb_pilot(),
-        "01_panel_profile_colab.ipynb": nb_panel_profile(),
-        "02_panel_behavior_colab.ipynb": nb_panel_behavior(),
-        "03_inheritance_colab.ipynb": nb_inheritance(),
-        "04_prediction_analysis_colab.ipynb": nb_prediction(),
-        "05_robustness_optional_colab.ipynb": nb_robustness(),
-    }
+    _clean_old_notebooks()
+    order = panel_model_order()
+    prof_chunks = chunks(order, PROFILE_CHUNK)
+    beh_chunks = chunks(order, BEHAVIOR_CHUNK)
+
+    notebooks: dict[str, dict] = {"00_pilot_colab.ipynb": nb_pilot()}
+
+    # Profile chunks: 01a, 01b, 01c, ...
+    for i, ck in enumerate(prof_chunks):
+        notebooks[f"01{chr(ord('a')+i)}_profile_chunk_colab.ipynb"] = \
+            nb_profile_chunk(ck, i, len(prof_chunks))
+    # Behaviour chunks: 02a, 02b, ...
+    for i, ck in enumerate(beh_chunks):
+        notebooks[f"02{chr(ord('a')+i)}_behavior_chunk_colab.ipynb"] = \
+            nb_behavior_chunk(ck, i, len(beh_chunks))
+
+    notebooks["03_inheritance_colab.ipynb"] = nb_inheritance()
+    notebooks["04_prediction_analysis_colab.ipynb"] = nb_prediction()
+    notebooks["05_robustness_optional_colab.ipynb"] = nb_robustness()
+
     for name, nb in notebooks.items():
         path = NB_DIR / name
         with open(path, "w", encoding="utf-8") as f:
             json.dump(nb, f, indent=1)
-        print("wrote", path)
+        print("wrote", path, f"({len(nb['cells'])} cells)")
+    print(f"\n{len(prof_chunks)} profile chunk(s) x {PROFILE_CHUNK} models, "
+          f"{len(beh_chunks)} behaviour chunk(s) x {BEHAVIOR_CHUNK} models; "
+          f"<= {TIME_BUDGET_HOURS} h each.")
 
 
 if __name__ == "__main__":

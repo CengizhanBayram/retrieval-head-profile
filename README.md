@@ -104,11 +104,11 @@ retrieval-head-profile/
 │   ├── run_behavior.py     # Block B (E6 NIAH + E7 RULER)
 │   ├── run_inheritance.py  # Block C (E10–E15) — CPU analysis
 │   └── run_prediction.py   # E8 + E9 — CPU analysis
-├── notebooks/              # Colab "tasks", each ≤24 h, resume-safe to Drive
-│   ├── build_notebooks.py  # regenerates the .ipynb files
+├── notebooks/              # Colab "tasks", each chunk ≤24 h, resume-safe to Drive
+│   ├── build_notebooks.py  # regenerates/re-chunks the .ipynb files from panel.yaml
 │   ├── 00_pilot_colab.ipynb
-│   ├── 01_panel_profile_colab.ipynb
-│   ├── 02_panel_behavior_colab.ipynb
+│   ├── 01a–01d_profile_chunk_colab.ipynb   # Block A, 4 chunks × 5 models
+│   ├── 02a–02c_behavior_chunk_colab.ipynb  # Block B, 3 chunks × 7 models
 │   ├── 03_inheritance_colab.ipynb
 │   ├── 04_prediction_analysis_colab.ipynb
 │   └── 05_robustness_optional_colab.ipynb
@@ -224,23 +224,27 @@ interrupted sweep resumes cleanly.
 
 ### Google Colab (recommended for the panel)
 
-Each notebook is a **self-contained task sized to finish in one session
-(≤24 h)** and resume-safe to Google Drive. Run them in order:
+Colab kills a session past ~24 h, so the panel is **pre-split into fixed chunks,
+each sized to finish in one session** (≈17–18 h nominal, with a `TIME_BUDGET_HOURS`
+backstop that stops the loop before 24 h). Every chunk hard-codes its model list,
+writes to Google Drive, and is resume-safe. Run them in order; the profile/
+behaviour chunks are independent and can run in **parallel Colab accounts**.
 
 | Notebook | Task | GPU |
 |---|---|---|
-| `00_pilot_colab.ipynb` | WP1 pilot — full pipeline on 3 models | L4 |
-| `01_panel_profile_colab.ipynb` | Block A (E1–E5) for a model subset | L4 |
-| `02_panel_behavior_colab.ipynb` | Block B (E6–E7) | L4 |
-| `03_inheritance_colab.ipynb` | Block C (E10–E15) | L4 |
+| `00_pilot_colab.ipynb` | WP1 pilot — full pipeline on 3 models (~18 h) | L4 |
+| `01a–01d_profile_chunk_colab.ipynb` | Block A (E1–E5) · 4 chunks × 5 models (chunk A = the 5 core) | L4 |
+| `02a–02c_behavior_chunk_colab.ipynb` | Block B (E6–E7) · 3 chunks × 7 models | L4 |
+| `03_inheritance_colab.ipynb` | Block C (E10–E15): profile the 4 quant rings + CPU analysis | L4 |
 | `04_prediction_analysis_colab.ipynb` | E8 + E9 | **None (CPU)** |
 | `05_robustness_optional_colab.ipynb` | R1/R3/R4/R6/R7 + O-series | L4 |
 
-In each: edit the `PART1`/`PART2` repo owners and paste tokens in the setup
-cell, set `MODEL_SUBSET` to the chunk this session should do, and
-`TIME_BUDGET_HOURS` (default 11 h — under the free-tier disconnect; Colab Pro
-allows 24 h). Re-run across sessions until the panel is complete. Regenerate the
-notebooks after editing the generator with `python notebooks/build_notebooks.py`.
+In each: edit the `PART1`/`PART2` repo owners and paste tokens in the setup cell,
+then run top to bottom. Chunk `01a` also has a cell for the core models' extra
+seeds (123/2024, R5). If a chunk hits the time budget, just re-run it — finished
+models are skipped. Regenerate/re-chunk the notebooks after editing the panel or
+generator with `python notebooks/build_notebooks.py` (chunk size is set by
+`PROFILE_CHUNK`/`BEHAVIOR_CHUNK` there).
 
 ---
 

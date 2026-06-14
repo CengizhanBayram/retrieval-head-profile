@@ -98,3 +98,12 @@ Legend — **Code**: module/function in `rhp/` or the inherited `src/`.
 - E2 (8-window spectral curve) and E12 (single low/high-freq dose) are
   **different** experiments and both are stored; E2 gives the *shape*, E12 the
   *causal magnitude + specificity*.
+- **4-bit rings.** The proposal §3.4 chains include a 4-bit ring for every
+  lineage. Qwen uses the official pre-quantized **AWQ** and **GPTQ-Int4** repos
+  (which also drive the dedicated E14 AWQ-vs-GPTQ ablation). Llama and Gemma have
+  no equally-standard pre-quantized repo, so their 4-bit ring is **bitsandbytes
+  NF4** load-time quantization of the instruct weights (`quant: bnb4` →
+  `rhp.loader.load_model_any`); these flow through the regular E10–E13 ring
+  comparison. All 4-bit rings carry the Part-1 quantization caveat (R4 / L4): a
+  4-bit profile shift is cross-checked against the fp16/8-bit reference before it
+  is read as a real change rather than a measurement artifact.
