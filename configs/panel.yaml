@@ -253,11 +253,11 @@ lineages:
     chain: ["qwen25_7b", "qwen25_7b_instruct", "qwen25_7b_instruct_awq4", "qwen25_7b_instruct_gptq4"]
     sibling: "qwen25_3b_instruct"
   llama:
-    description: "Llama-3.1-8B: base → instruct → 4-bit quantized."
-    chain: ["llama31_8b", "llama31_8b_instruct"]
+    description: "Llama-3.1-8B: base → instruct → 4-bit (bnb NF4)."
+    chain: ["llama31_8b", "llama31_8b_instruct", "llama31_8b_instruct_bnb4"]
   gemma:
-    description: "Gemma-2-9B: pt → it; Gemma-2-2B is the reported distillation sibling."
-    chain: ["gemma2_9b", "gemma2_9b_it"]
+    description: "Gemma-2-9B: pt → it → 4-bit (bnb NF4); Gemma-2-2B is the reported distillation sibling."
+    chain: ["gemma2_9b", "gemma2_9b_it", "gemma2_9b_it_bnb4"]
     sibling: "gemma2_2b"
   mistral:
     description: "Mistral-7B v0.3: base → instruct."
