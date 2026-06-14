@@ -16,12 +16,13 @@
 #         the rest get a single seed (proposal §5 / R5).
 # `quant`: only set on quantized rings (e.g. awq4 / gptq4) — drives the loader.
 #
-# PANEL SIZE: 24 base/instruct models below (8 families: llama, qwen, gemma,
-# mistral, olmo, phi, falcon, stablelm, internlm, yi) + 2 quantized rings = 26
-# pinnable entries. The proposal targets "≈18"; the extra points buy statistical
-# power for the RQ2 regression (§7 risk: "18 points few"). All sit ≤14 B so each
-# loads alone in 8-bit on a 24 GB GPU. Trim back via the §4 priority order if a
-# pre-screen drops any model (gated access / no clean NIAH baseline).
+# PANEL SIZE: 18 base/instruct models below (8 families: llama, qwen, gemma,
+# mistral, olmo, phi, falcon, stablelm) + 2 quantized rings = 20 pinnable
+# entries. This is exactly the proposal §3.2 draft panel: 12 base families + 6
+# instruct/it derivatives that also serve the lineage chains (§3.4). All sit
+# ≤9 B so each loads alone in 8-bit on a 24 GB GPU. If §7's "18 points few"
+# statistical-power risk bites, the panel can be expanded (the proposal leaves
+# that path open); if the §4 budget bites, trim to the 14-model core.
 # ===========================================================================
 
 defaults:
@@ -30,15 +31,6 @@ defaults:
 
 models:
   # ---- Llama family ------------------------------------------------------
-  llama32_1b:
-    hf_id: "meta-llama/Llama-3.2-1B"
-    theta: 500000
-    n_layers: 16
-    n_heads: 32
-    head_dim: 64
-    license: "llama3.2"
-    family: "llama"
-    tier: "panel"
   llama32_3b:
     hf_id: "meta-llama/Llama-3.2-3B"
     theta: 500000
@@ -78,15 +70,6 @@ models:
     family: "llama"
     tier: "panel"
   # ---- Qwen family -------------------------------------------------------
-  qwen25_1_5b:
-    hf_id: "Qwen/Qwen2.5-1.5B"
-    theta: 1000000
-    n_layers: 28
-    n_heads: 12
-    head_dim: 128
-    license: "apache-2.0"
-    family: "qwen"
-    tier: "panel"
   qwen25_3b:
     hf_id: "Qwen/Qwen2.5-3B"
     theta: 1000000
@@ -96,15 +79,6 @@ models:
     license: "qwen"
     family: "qwen"
     tier: "core"
-  qwen25_14b:
-    hf_id: "Qwen/Qwen2.5-14B"
-    theta: 1000000
-    n_layers: 48
-    n_heads: 40
-    head_dim: 128
-    license: "apache-2.0"
-    family: "qwen"
-    tier: "panel"
   qwen25_7b:
     hf_id: "Qwen/Qwen2.5-7B"
     revision: "d149729398750b98c0af14eb82c78cfe92750796"
@@ -136,15 +110,6 @@ models:
   # ---- Gemma family ------------------------------------------------------
   gemma2_2b:
     hf_id: "google/gemma-2-2b"
-    theta: 10000
-    n_layers: 26
-    n_heads: 8
-    head_dim: 256
-    license: "gemma"
-    family: "gemma"
-    tier: "panel"
-  gemma2_2b_it:
-    hf_id: "google/gemma-2-2b-it"
     theta: 10000
     n_layers: 26
     n_heads: 8
@@ -235,27 +200,11 @@ models:
     license: "stabilityai-community"
     family: "stablelm"
     tier: "panel"
-  internlm2_5_7b:
-    hf_id: "internlm/internlm2_5-7b"
-    theta: 1000000
-    n_layers: 32
-    n_heads: 32
-    head_dim: 128
-    license: "apache-2.0"
-    family: "internlm"
-    tier: "panel"
-  yi15_6b:
-    hf_id: "01-ai/Yi-1.5-6B"
-    theta: 5000000
-    n_layers: 32
-    n_heads: 32
-    head_dim: 128
-    license: "apache-2.0"
-    family: "yi"
-    tier: "panel"
 
-# Quantized rings used only by the inheritance chains (E10–E14). The loader
-# reads `quant` to pick AWQ/GPTQ; otherwise it falls back to 8-bit.
+# Quantized rings used only by the inheritance chains (E10–E14). `quant` drives
+# rhp.loader.load_model_any: "awq4"/"gptq4" load a pre-quantized repo, "bnb4"
+# applies bitsandbytes NF4 load-time 4-bit to the instruct weights (no separate
+# repo needed — the proposal's §3.4 "→ 4-bit quantized" rings for Llama/Gemma).
 quant_models:
   qwen25_7b_instruct_awq4:
     hf_id: "Qwen/Qwen2.5-7B-Instruct-AWQ"
@@ -275,6 +224,24 @@ quant_models:
     head_dim: 128
     license: "apache-2.0"
     family: "qwen"
+  llama31_8b_instruct_bnb4:
+    hf_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    quant: "bnb4"
+    theta: 500000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "llama3.1"
+    family: "llama"
+  gemma2_9b_it_bnb4:
+    hf_id: "google/gemma-2-9b-it"
+    quant: "bnb4"
+    theta: 10000
+    n_layers: 42
+    n_heads: 16
+    head_dim: 256
+    license: "gemma"
+    family: "gemma"
 
 # ---------------------------------------------------------------------------
 # Inheritance lineages (proposal §3.4). Each is an ORDERED chain of rings; the

@@ -91,13 +91,14 @@ def run_profile_for_model(
 
     import random as _random
 
-    from src.model_loader import load_model, purge_hf_cache
+    from src.model_loader import purge_hf_cache
     from src.repro import capture_environment, set_determinism
     from src.retrieval_head_detector import RetrievalHeadDetector
     from src.dimension_utility import DimensionUtilityAnalyzer
     from src.activation_patching import ActivationPatcher
     from src.corpus import build_haystack, load_haystack_corpus
 
+    from rhp.loader import load_model_any as load_model
     from rhp.copy_score_detector import CopyScoreDetector
     from rhp.knockout import KnockoutEvaluator
     from rhp.freq_signature import frequency_signature
@@ -274,10 +275,11 @@ def run_behavior_for_model(
 
     import numpy as np
 
-    from src.model_loader import load_model, purge_hf_cache
+    from src.model_loader import purge_hf_cache
     from src.repro import capture_environment, set_determinism
     from src.niah_evaluator import NIAHEvaluator
 
+    from rhp.loader import load_model_any as load_model
     from rhp.ruler import RulerEvaluator
 
     niah = config["niah"]

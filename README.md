@@ -124,24 +124,26 @@ retrieval-head-profile/
 
 ## The model panel
 
-**24 base/instruct models across 10 families** + 2 quantized rings, all ≤14 B so
-each loads alone in 8-bit on a 24 GB GPU. Five are **core** (3 seeds +
-test-retest); the rest get a single seed (proposal §5 / R5).
+**18 base/instruct models across 8 families** + 2 quantized rings — exactly the
+proposal §3.2 draft panel (12 base families + 6 instruct/it derivatives that also
+serve the lineage chains). All ≤9 B so each loads alone in 8-bit on a 24 GB GPU.
+Five are **core** (3 seeds + test-retest); the rest get a single seed
+(proposal §5 / R5).
 
 | Family | Models |
 |---|---|
-| Llama | 3.2-1B, 3.2-3B*, 3.1-8B*, 3.1-8B-Instruct, 2-7B |
-| Qwen | 2.5-1.5B, 2.5-3B*, 2.5-3B-Instruct, 2.5-7B*, 2.5-7B-Instruct, 2.5-14B |
-| Gemma | 2-2B, 2-2B-it, 2-9B*, 2-9B-it |
+| Llama | 3.2-3B*, 3.1-8B*, 3.1-8B-Instruct, 2-7B |
+| Qwen | 2.5-3B*, 2.5-3B-Instruct, 2.5-7B*, 2.5-7B-Instruct |
+| Gemma | 2-2B, 2-9B*, 2-9B-it |
 | Mistral | 7B-v0.3, 7B-Instruct-v0.3 |
 | OLMo | 2-7B, 2-7B-Instruct |
 | Phi | 3.5-mini-instruct |
 | Falcon | 3-7B-Base |
 | StableLM | 2-1.6B |
-| InternLM | 2.5-7B |
-| Yi | 1.5-6B |
 
-`*` = core. Quant rings: `Qwen2.5-7B-Instruct-AWQ`, `…-GPTQ-Int4`.
+`*` = core. Quant rings: `Qwen2.5-7B-Instruct-AWQ`, `…-GPTQ-Int4`. If §7's "18
+points few" risk bites, the panel expansion path is left open; if the §4 budget
+bites, trim to the 14-model core.
 
 > **Before the reportable run, pin every `revision` to a commit SHA** (the loader
 > warns while a revision is `"main"`). Pre-screening (~2–4 GPU-h/model) finalises
