@@ -1,0 +1,20 @@
+# Retrieval-Head Profile (Part 2) — runtime dependencies.
+# Pinned where it materially affects attention capture / quantization.
+# These match the Part-1 repo so the inherited src/ modules behave identically.
+torch>=2.1
+transformers==4.47.0
+accelerate>=0.30
+bitsandbytes>=0.43          # 8-bit / 4-bit quantization (24 GB panel + AWQ/GPTQ rings)
+datasets>=2.18              # PG-19 haystack corpus
+huggingface_hub>=0.23
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.3           # LOO regression (E8)
+pandas>=2.0
+matplotlib>=3.7
+seaborn>=0.12
+tqdm>=4.66
+pyyaml>=6.0
+# optional, only for the AWQ/GPTQ inheritance rings (E10–E14):
+#   autoawq      # AWQ 4-bit
+#   optimum, auto-gptq   # GPTQ 4-bit

@@ -1,0 +1,339 @@
+# ===========================================================================
+# Retrieval-Head Profile — model panel and inheritance lineages.
+#
+# Selection principles (proposal §3.2):
+#   • 3–9 B range (fits 24 GB in 8-bit), open license, pinnable HF revision,
+#     architecture/family diversity.
+#   • Each entry mirrors the Part-1 config schema (hf_id, revision, theta,
+#     n_layers, n_heads, head_dim, load_in_8bit, license) so the inherited
+#     src/model_loader.load_model() consumes it unchanged.
+#
+# REVISIONS ARE UNPINNED ("main") ON PURPOSE in this template. Before the
+# reportable run, replace each with an exact commit SHA (the loader warns while
+# a revision is "main"). Pre-screening (≈2–4 GPU-h/model) finalises the list.
+#
+# `tier`: core | panel.  The 5 "core" models get 3 seeds and test-retest (E9);
+#         the rest get a single seed (proposal §5 / R5).
+# `quant`: only set on quantized rings (e.g. awq4 / gptq4) — drives the loader.
+#
+# PANEL SIZE: 24 base/instruct models below (8 families: llama, qwen, gemma,
+# mistral, olmo, phi, falcon, stablelm, internlm, yi) + 2 quantized rings = 26
+# pinnable entries. The proposal targets "≈18"; the extra points buy statistical
+# power for the RQ2 regression (§7 risk: "18 points few"). All sit ≤14 B so each
+# loads alone in 8-bit on a 24 GB GPU. Trim back via the §4 priority order if a
+# pre-screen drops any model (gated access / no clean NIAH baseline).
+# ===========================================================================
+
+defaults:
+  load_in_8bit: true
+  revision: "main"        # ← pin to a commit SHA before the reportable run
+
+models:
+  # ---- Llama family ------------------------------------------------------
+  llama32_1b:
+    hf_id: "meta-llama/Llama-3.2-1B"
+    theta: 500000
+    n_layers: 16
+    n_heads: 32
+    head_dim: 64
+    license: "llama3.2"
+    family: "llama"
+    tier: "panel"
+  llama32_3b:
+    hf_id: "meta-llama/Llama-3.2-3B"
+    theta: 500000
+    n_layers: 28
+    n_heads: 24
+    head_dim: 128
+    license: "llama3.2"
+    family: "llama"
+    tier: "core"
+  llama31_8b:
+    hf_id: "meta-llama/Meta-Llama-3.1-8B"
+    revision: "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b"
+    theta: 500000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "llama3.1"
+    family: "llama"
+    tier: "core"
+  llama31_8b_instruct:
+    hf_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    theta: 500000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "llama3.1"
+    family: "llama"
+    tier: "panel"
+  llama2_7b:
+    hf_id: "meta-llama/Llama-2-7b-hf"
+    revision: "01c7f73d771dfac7d292323805ebc428287df4f9"
+    theta: 10000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "llama2"
+    family: "llama"
+    tier: "panel"
+  # ---- Qwen family -------------------------------------------------------
+  qwen25_1_5b:
+    hf_id: "Qwen/Qwen2.5-1.5B"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 12
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+    tier: "panel"
+  qwen25_3b:
+    hf_id: "Qwen/Qwen2.5-3B"
+    theta: 1000000
+    n_layers: 36
+    n_heads: 16
+    head_dim: 128
+    license: "qwen"
+    family: "qwen"
+    tier: "core"
+  qwen25_14b:
+    hf_id: "Qwen/Qwen2.5-14B"
+    theta: 1000000
+    n_layers: 48
+    n_heads: 40
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+    tier: "panel"
+  qwen25_7b:
+    hf_id: "Qwen/Qwen2.5-7B"
+    revision: "d149729398750b98c0af14eb82c78cfe92750796"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 28
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+    tier: "core"
+  qwen25_7b_instruct:
+    hf_id: "Qwen/Qwen2.5-7B-Instruct"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 28
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+    tier: "panel"
+  qwen25_3b_instruct:
+    hf_id: "Qwen/Qwen2.5-3B-Instruct"
+    theta: 1000000
+    n_layers: 36
+    n_heads: 16
+    head_dim: 128
+    license: "qwen"
+    family: "qwen"
+    tier: "panel"
+  # ---- Gemma family ------------------------------------------------------
+  gemma2_2b:
+    hf_id: "google/gemma-2-2b"
+    theta: 10000
+    n_layers: 26
+    n_heads: 8
+    head_dim: 256
+    license: "gemma"
+    family: "gemma"
+    tier: "panel"
+  gemma2_2b_it:
+    hf_id: "google/gemma-2-2b-it"
+    theta: 10000
+    n_layers: 26
+    n_heads: 8
+    head_dim: 256
+    license: "gemma"
+    family: "gemma"
+    tier: "panel"
+  gemma2_9b:
+    hf_id: "google/gemma-2-9b"
+    theta: 10000
+    n_layers: 42
+    n_heads: 16
+    head_dim: 256
+    license: "gemma"
+    family: "gemma"
+    tier: "core"
+  gemma2_9b_it:
+    hf_id: "google/gemma-2-9b-it"
+    theta: 10000
+    n_layers: 42
+    n_heads: 16
+    head_dim: 256
+    license: "gemma"
+    family: "gemma"
+    tier: "panel"
+  # ---- Other families ----------------------------------------------------
+  mistral7b_v03:
+    hf_id: "mistralai/Mistral-7B-v0.3"
+    theta: 1000000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "mistral"
+    tier: "panel"
+  mistral7b_v03_instruct:
+    hf_id: "mistralai/Mistral-7B-Instruct-v0.3"
+    theta: 1000000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "mistral"
+    tier: "panel"
+  olmo2_7b:
+    hf_id: "allenai/OLMo-2-1124-7B"
+    revision: "7df9a82518afdecae4e8c026b27adccc8c1f0032"
+    theta: 500000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "olmo"
+    tier: "panel"
+  olmo2_7b_instruct:
+    hf_id: "allenai/OLMo-2-1124-7B-Instruct"
+    theta: 500000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "olmo"
+    tier: "panel"
+  phi35_mini:
+    hf_id: "microsoft/Phi-3.5-mini-instruct"
+    theta: 10000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 96
+    license: "mit"
+    family: "phi"
+    tier: "panel"
+  falcon3_7b:
+    hf_id: "tiiuae/Falcon3-7B-Base"
+    theta: 1000042
+    n_layers: 28
+    n_heads: 12
+    head_dim: 256
+    license: "falcon-llm-license"
+    family: "falcon"
+    tier: "panel"
+  stablelm2_elle:
+    hf_id: "stabilityai/stablelm-2-1_6b"
+    theta: 10000
+    n_layers: 24
+    n_heads: 32
+    head_dim: 64
+    license: "stabilityai-community"
+    family: "stablelm"
+    tier: "panel"
+  internlm2_5_7b:
+    hf_id: "internlm/internlm2_5-7b"
+    theta: 1000000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "internlm"
+    tier: "panel"
+  yi15_6b:
+    hf_id: "01-ai/Yi-1.5-6B"
+    theta: 5000000
+    n_layers: 32
+    n_heads: 32
+    head_dim: 128
+    license: "apache-2.0"
+    family: "yi"
+    tier: "panel"
+
+# Quantized rings used only by the inheritance chains (E10–E14). The loader
+# reads `quant` to pick AWQ/GPTQ; otherwise it falls back to 8-bit.
+quant_models:
+  qwen25_7b_instruct_awq4:
+    hf_id: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+    quant: "awq4"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 28
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+  qwen25_7b_instruct_gptq4:
+    hf_id: "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4"
+    quant: "gptq4"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 28
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+
+# ---------------------------------------------------------------------------
+# Inheritance lineages (proposal §3.4). Each is an ORDERED chain of rings; the
+# inheritance package measures every adjacent ring-pair.
+# ---------------------------------------------------------------------------
+lineages:
+  qwen:
+    description: "Qwen2.5-7B: base → instruct → 4-bit (AWQ/GPTQ); 3B sibling for distillation contrast."
+    chain: ["qwen25_7b", "qwen25_7b_instruct", "qwen25_7b_instruct_awq4", "qwen25_7b_instruct_gptq4"]
+    sibling: "qwen25_3b_instruct"
+  llama:
+    description: "Llama-3.1-8B: base → instruct → 4-bit quantized."
+    chain: ["llama31_8b", "llama31_8b_instruct"]
+  gemma:
+    description: "Gemma-2-9B: pt → it; Gemma-2-2B is the reported distillation sibling."
+    chain: ["gemma2_9b", "gemma2_9b_it"]
+    sibling: "gemma2_2b"
+  mistral:
+    description: "Mistral-7B v0.3: base → instruct."
+    chain: ["mistral7b_v03", "mistral7b_v03_instruct"]
+
+# ---------------------------------------------------------------------------
+# NIAH / profile / behavioural hyperparameters. Mirrors the Part-1 `niah`
+# block; values reflect proposal §3.3 and Block A/B specs.
+# ---------------------------------------------------------------------------
+niah:
+  context_lengths: [1024, 2048, 4096]
+  context_lengths_small: [1024, 2048, 4096, 8192, 16384]   # used for ≤3B models (E6)
+  needle_positions: [0.1, 0.25, 0.5, 0.75, 0.9]
+  n_samples: 200                 # profile sample budget; R6 sweeps 100 vs 200
+  score_threshold: 0.1           # R1 sweeps τ ∈ {0.05, 0.1, 0.2, 0.3}
+  threshold_sweep: [0.05, 0.1, 0.2, 0.3]
+  seeds: [42, 123, 2024]
+
+profile:
+  # Frequency-signature sweep (E2): k = head_dim/8 window, 8 spectral positions.
+  freq_window_divisor: 8
+  freq_n_windows: 8
+  coverage: 0.5                  # fraction of retrieval heads patched (R3: 0.3/0.5/1.0)
+  top_k_heads: 30                # cap the patched population for VRAM/time
+  knockout_random_seeds: [0, 1, 2, 3, 4]
+
+activation_patching:
+  k_dims: 16
+
+ruler:
+  # E7 subset; keep small and defensible (proposal §3.3).
+  tasks: ["multikey", "multivalue", "vartrack"]
+  context_lengths: [2048, 4096]
+  n_samples: 100
+  seeds: [42, 123]
+  multikey_n_keys: 4
+  multivalue_n_values: 3
+  vartrack_chain_len: 4
+
+output:
+  results_dir: "./results"
+  figures_dpi: 300
+  figure_format: "pdf"
+
+reproducibility:
+  strict_determinism: false
