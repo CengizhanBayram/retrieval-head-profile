@@ -141,7 +141,10 @@ Five are **core** (3 seeds + test-retest); the rest get a single seed
 | Falcon | 3-7B-Base |
 | StableLM | 2-1.6B |
 
-`*` = core. Quant rings: `Qwen2.5-7B-Instruct-AWQ`, `…-GPTQ-Int4`. If §7's "18
+`*` = core. **Quant rings (4)** used inside the lineages (E10–E14):
+`Qwen2.5-7B-Instruct-AWQ`, `…-GPTQ-Int4` (pre-quantized repos), and
+bitsandbytes-NF4 4-bit of `Llama-3.1-8B-Instruct` and `Gemma-2-9B-it`
+(load-time, no separate repo — the §3.4 "→ 4-bit quantized" rings). If §7's "18
 points few" risk bites, the panel expansion path is left open; if the §4 budget
 bites, trim to the 14-model core.
 
@@ -155,8 +158,8 @@ bites, trim to the 14-model core.
 | Lineage | Chain | Sibling (distillation) |
 |---|---|---|
 | Qwen | 7B → 7B-Instruct → AWQ-4bit → GPTQ-4bit | 3B-Instruct |
-| Llama | 8B → 8B-Instruct | — |
-| Gemma | 9B → 9B-it | 2B |
+| Llama | 8B → 8B-Instruct → 4bit (NF4) | — |
+| Gemma | 9B → 9B-it → 4bit (NF4) | 2B |
 | Mistral | 7B-v0.3 → 7B-Instruct-v0.3 | — |
 
 ---
