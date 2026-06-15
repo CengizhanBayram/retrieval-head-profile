@@ -53,6 +53,35 @@ def save_json(obj, path: str | Path) -> None:
         raise
 
 
+def time_guard(
+    start_time: float,
+    model_times: list[float],
+    *,
+    hard_cap_h: float = 23.0,
+    first_est_h: float = 8.0,
+    safety: float = 1.25,
+) -> tuple[bool, float, float]:
+    """
+    Adaptive 24 h-safe gate. Call BEFORE starting each model.
+
+    Returns ``(ok, elapsed_h, est_h)``. ``ok=False`` means **do not start another
+    model** — its conservative time estimate would cross ``hard_cap_h`` (kept a
+    full hour under Colab's 24 h limit). The estimate is the max *measured*
+    per-model time so far × ``safety``, **floored at** ``first_est_h`` so the
+    guard always reserves a conservative single-model budget even when the
+    upcoming model is heavier than the (lighter) ones already done — e.g. a 9 B
+    arriving after several 3 B. With ``first_est_h`` ≥ the true heaviest single
+    model, a model only starts when it can finish under ``hard_cap_h``, so no
+    notebook reaches Colab's 24 h limit. The first model always starts (one
+    ≤9 B model at ≤32 k cannot itself exceed 24 h).
+    """
+    import time
+
+    elapsed_h = (time.time() - start_time) / 3600.0
+    est_h = max(max(model_times) * safety, first_est_h) if model_times else first_est_h
+    return (elapsed_h + est_h <= hard_cap_h), elapsed_h, est_h
+
+
 def _json_default(o):
     import numpy as np
     if isinstance(o, (np.floating,)):

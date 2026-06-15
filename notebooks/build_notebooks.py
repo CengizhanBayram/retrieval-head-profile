@@ -23,15 +23,14 @@ NB_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = NB_DIR.parent / "configs" / "panel.yaml"
 
 # Conservative per-model wall-clock estimates on an L4 (8-bit). Used only to size
-# the chunks so each notebook finishes well inside a 24 h Colab session; the
-# TIME_BUDGET_HOURS guard inside every notebook is the hard backstop.
+# the chunks so the NOMINAL run finishes well inside a 24 h Colab session; the
+# real guarantee is the adaptive `time_guard` (23 h hard cap) inside every cell,
+# which won't start a model that can't finish in time.
 EST_PROFILE_H = 4.0        # pilot measured 3.2–4.3 h/model
 EST_BEHAVIOR_H = 3.5       # long-context (≤32k) sweep + harder RULER
 PROFILE_CHUNK = 4          # 4 × 4.0 h ≈ 16 h nominal
 BEHAVIOR_CHUNK = 5         # 5 × 3.5 h ≈ 17.5 h nominal
-# Backstop guard. Checked BEFORE each model, so the worst-case finish is
-# budget + one model (≈4.3 h) — kept under 24 h with margin.
-TIME_BUDGET_HOURS = 18
+HARD_CAP_H = 23            # adaptive guard cap (1 h under Colab's 24 h limit)
 
 
 def panel_model_order() -> list[str]:
@@ -189,25 +188,33 @@ def nb_pilot() -> dict:
     cells.append(md("## Task P — pilot profile + behaviour (3 models)"))
     cells.append(code("""
 # Pilot models span 3 families + a small model (long-context behaviour).
+# 24 h-safe: the adaptive guard won't START a model whose estimated
+# profile+behaviour time would cross a 23 h cap. Re-run to finish the rest.
 import time
 from pathlib import Path
-from scripts._common import run_profile_for_model, run_behavior_for_model, save_json
+from scripts._common import run_profile_for_model, run_behavior_for_model, save_json, time_guard
 from rhp.panel import load_panel, model_cfg
 
 config = load_panel(CONFIG)
 PILOT = ['llama32_3b', 'qwen25_7b', 'olmo2_7b']
 SEED = 42
-TIME_BUDGET_HOURS = 14.0          # profile (~4 h) + long-ctx behaviour (~3.5 h) per model
 
 prof_dir = Path(RESULTS_DIR) / 'profile'; prof_dir.mkdir(parents=True, exist_ok=True)
 beh_dir  = Path(RESULTS_DIR) / 'behavior'; beh_dir.mkdir(parents=True, exist_ok=True)
-start = time.time()
+start = time.time(); model_times = []
 
 for key in PILOT:
-    if time.time() - start > TIME_BUDGET_HOURS * 3600:
-        print('Time budget reached — re-run to resume.'); break
-    # --- profile (E1–E5) ---
     pout = prof_dir / f'{key}_seed{SEED}.json'
+    bout = beh_dir / f'{key}_seed{SEED}.json'
+    if pout.exists() and bout.exists():
+        print(key, 'done -> skip'); continue
+    # one PILOT model = profile + behaviour, so estimate ~8 h for the first.
+    ok, elapsed_h, est_h = time_guard(start, model_times, first_est_h=10.0)  # pilot: profile+behaviour
+    if not ok:
+        print(f'STOP at {key}: {elapsed_h:.1f} h elapsed + next est {est_h:.1f} h '
+              f'> 23 h cap. Re-run to resume.'); break
+    t0 = time.time()
+    # --- profile (E1–E5) ---
     if pout.exists():
         print(key, 'profile done -> skip')
     else:
@@ -221,7 +228,6 @@ for key in PILOT:
         except Exception as e:
             print(key, 'profile FAILED:', e)
     # --- behaviour (E6–E7) ---
-    bout = beh_dir / f'{key}_seed{SEED}.json'
     if bout.exists():
         print(key, 'behaviour done -> skip')
     else:
@@ -234,6 +240,7 @@ for key in PILOT:
                   '| per-context =', b.get('niah_per_context'))
         except Exception as e:
             print(key, 'behaviour FAILED:', e)
+    model_times.append((time.time() - t0) / 3600)
 
 print('\\nPilot done. If the numbers look sane, scale up with notebooks 01 + 02.')
 """))
@@ -273,42 +280,49 @@ def nb_profile_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
         f"concentration + layer profile (E4), GQA control (E5).\n\n"
         f"**This chunk's models:**\n\n`{models}`\n\n"
         f"Resume-safe: each model writes `profile/<model>_seed<seed>.json` to "
-        f"Drive and is skipped on re-run. The `TIME_BUDGET_HOURS={TIME_BUDGET_HOURS}` "
-        f"guard stops the loop before the Colab limit; just re-run to finish any "
-        f"remainder. Run chunks A→{chr(ord('A')+n_chunks-1)} in any order / parallel "
-        f"Colab accounts.")]
+        f"Drive and is skipped on re-run. An **adaptive 23 h guard** won't start a "
+        f"model that can't finish in time, so the notebook never hits Colab's 24 h "
+        f"limit; just re-run to finish any remainder. Run chunks "
+        f"A→{chr(ord('A')+n_chunks-1)} in any order / parallel Colab accounts.")]
     cells += setup_cells()
-    cells.append(md(f"## Profile this chunk ({len(models)} models, seed 42)"))
+    cells.append(md(f"## Profile this chunk ({len(models)} models, seed 42)\n"
+                    "**24 h-safe:** an adaptive guard refuses to *start* a model whose "
+                    "estimated time (max measured so far ×1.25) would cross a 23 h cap, "
+                    "so the notebook always stops before Colab's 24 h limit. Re-run to "
+                    "finish any skipped models."))
     cells.append(code(f"""
 import time
 from pathlib import Path
-from scripts._common import run_profile_for_model, save_json
+from scripts._common import run_profile_for_model, save_json, time_guard
 from rhp.panel import load_panel, model_cfg
 
 config = load_panel(CONFIG)
 MODEL_SUBSET = {models}
 SEED = 42
 CONTEXT = 4096
-TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}    # hard backstop < 24 h Colab limit
 
 OUT = Path(RESULTS_DIR) / 'profile'; OUT.mkdir(parents=True, exist_ok=True)
-start = time.time()
+start = time.time(); model_times = []
 for key in MODEL_SUBSET:
     out = OUT / f'{{key}}_seed{{SEED}}.json'
     if out.exists():
         print(key, 'done -> skip'); continue
-    if time.time() - start > TIME_BUDGET_HOURS * 3600:
-        print('Time budget reached — re-run this notebook to resume at', key); break
+    ok, elapsed_h, est_h = time_guard(start, model_times)   # hard cap 23 h
+    if not ok:
+        print(f'STOP at {{key}}: {{elapsed_h:.1f}} h elapsed + next est {{est_h:.1f}} h '
+              f'> 23 h cap. Re-run this notebook to resume.'); break
+    t0 = time.time()
     try:
         res = run_profile_for_model(key, model_cfg(config, key), config,
                                     seed=SEED, context_length=CONTEXT)
         save_json(res, out)
+        model_times.append((time.time() - t0) / 3600)
         pr = res['profile']
         print(f"{{key}}: heads={{pr['n_heads']}} copy={{pr['n_heads_copy']}} "
               f"gini={{pr['concentration']['gini']:.3f}} "
               f"freq_com={{pr['scalars']['freq_com']}} "
               f"knock={{pr['scalars']['knockout_drop']}}  "
-              f"[{{(time.time()-start)/3600:.1f}} h elapsed]")
+              f"[{{model_times[-1]:.1f}} h this model, {{(time.time()-start)/3600:.1f}} h total]")
     except Exception as e:
         print(key, 'FAILED:', e)
 print('\\nChunk {letter} elapsed %.1f h.' % ((time.time()-start)/3600))
@@ -317,31 +331,35 @@ print('\\nChunk {letter} elapsed %.1f h.' % ((time.time()-start)/3600))
         cells.append(md(
             "## Extra seeds for the 5 core models (R5) — run after all chunks\n"
             "The core models (`llama32_3b, llama31_8b, qwen25_3b, qwen25_7b, "
-            "gemma2_9b`) get 3 seeds. This cell does seeds 123 + 2024 for **just "
-            "the core** (≈18 h each seed → run as two more sessions if needed)."))
-        cells.append(code(f"""
+            "gemma2_9b`) get 3 seeds. This does seeds 123 + 2024 for **just the "
+            "core** (10 runs ≈ 40 h total → the adaptive 23 h guard stops each "
+            "session in time; re-run until all 10 are on Drive)."))
+        cells.append(code("""
 import time
 from pathlib import Path
-from scripts._common import run_profile_for_model, save_json
+from scripts._common import run_profile_for_model, save_json, time_guard
 from rhp.panel import load_panel, model_cfg, core_models
 
 config = load_panel(CONFIG)
 CORE = core_models(config)
 OUT = Path(RESULTS_DIR) / 'profile'; OUT.mkdir(parents=True, exist_ok=True)
-TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}
-for SEED in (123, 2024):
-    start = time.time()
-    for key in CORE:
-        out = OUT / f'{{key}}_seed{{SEED}}.json'
-        if out.exists(): print(key, SEED, 'done -> skip'); continue
-        if time.time() - start > TIME_BUDGET_HOURS*3600:
-            print('budget reached at', key, SEED); break
-        try:
-            save_json(run_profile_for_model(key, model_cfg(config, key), config,
-                      seed=SEED, context_length=4096), out)
-            print(key, 'seed', SEED, 'done')
-        except Exception as e:
-            print(key, SEED, 'FAILED:', e)
+jobs = [(s, k) for s in (123, 2024) for k in CORE]   # flattened so the guard spans both seeds
+start = time.time(); model_times = []
+for SEED, key in jobs:
+    out = OUT / f'{key}_seed{SEED}.json'
+    if out.exists(): print(key, SEED, 'done -> skip'); continue
+    ok, elapsed_h, est_h = time_guard(start, model_times)
+    if not ok:
+        print(f'STOP at {key} seed {SEED}: {elapsed_h:.1f} h + est {est_h:.1f} h > 23 h cap. '
+              f'Re-run to resume.'); break
+    t0 = time.time()
+    try:
+        save_json(run_profile_for_model(key, model_cfg(config, key), config,
+                  seed=SEED, context_length=4096), out)
+        model_times.append((time.time() - t0) / 3600)
+        print(key, 'seed', SEED, 'done', f'[{model_times[-1]:.1f} h]')
+    except Exception as e:
+        print(key, SEED, 'FAILED:', e)
 """))
     cells.append(md("## Quick summary of everything profiled so far"))
     cells.append(code("""
@@ -372,12 +390,12 @@ def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
     cells = [md(
         f"# Behaviour · chunk {letter} of {n_chunks} (Block B · E6 NIAH + E7 RULER)\n"
         f"Behavioural targets the profile must predict (RQ2) for **{len(models)} "
-        f"models** (≈{est:.0f} h on an L4): the NIAH position/length sweep (E6) and "
-        f"the RULER subset — multi-key, multi-value, variable tracking (E7).\n\n"
+        f"models** (≈{est:.0f} h on an L4): the **long-context** NIAH sweep "
+        f"(4k→32k, E6) and the RULER subset — multi-key, multi-value, variable "
+        f"tracking (E7).\n\n"
         f"**This chunk's models:**\n\n`{models}`\n\n"
-        f"Resume-safe to `behavior/<model>_seed<seed>.json`; "
-        f"`TIME_BUDGET_HOURS={TIME_BUDGET_HOURS}` backstop. ≤3B models automatically "
-        f"get the long-context lengths (8192/16384).")]
+        f"Resume-safe to `behavior/<model>_seed<seed>.json`; an **adaptive 23 h "
+        f"guard** keeps every session under Colab's 24 h limit.")]
     cells += setup_cells()
     cells.append(md(f"## Behaviour for this chunk ({len(models)} models, seed 42)\n"
                     "Long-context NIAH sweep (4k→32k, per-context sample schedule "
@@ -387,33 +405,36 @@ def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
     cells.append(code(f"""
 import time
 from pathlib import Path
-from scripts._common import run_behavior_for_model, save_json
+from scripts._common import run_behavior_for_model, save_json, time_guard
 from rhp.panel import load_panel, model_cfg
 
 config = load_panel(CONFIG)
 MODEL_SUBSET = {models}
 SEED = 42
-TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}
 DO_RULER = True
 
 OUT = Path(RESULTS_DIR) / 'behavior'; OUT.mkdir(parents=True, exist_ok=True)
-start = time.time()
+start = time.time(); model_times = []
 for key in MODEL_SUBSET:
     out = OUT / f'{{key}}_seed{{SEED}}.json'
     if out.exists():
         print(key, 'done -> skip'); continue
-    if time.time() - start > TIME_BUDGET_HOURS * 3600:
-        print('Time budget reached — re-run this notebook to resume at', key); break
+    ok, elapsed_h, est_h = time_guard(start, model_times, first_est_h=7.0)  # behaviour: hard cap 23 h
+    if not ok:
+        print(f'STOP at {{key}}: {{elapsed_h:.1f}} h elapsed + next est {{est_h:.1f}} h '
+              f'> 23 h cap. Re-run this notebook to resume.'); break
     cfg = model_cfg(config, key)
+    t0 = time.time()
     try:
         # context schedule is read from config['behavior'] inside the helper
         res = run_behavior_for_model(key, cfg, config, seed=SEED, do_ruler=DO_RULER)
         res['family'] = cfg.get('family')
         save_json(res, out)
+        model_times.append((time.time() - t0) / 3600)
         b = res['behavior']
         print(f"{{key}}: NIAH_long={{b['niah_long']:.3f}} overall={{b['niah_overall']:.3f}} "
               f"per_ctx={{b.get('niah_per_context')}}  "
-              f"[{{(time.time()-start)/3600:.1f}} h elapsed]")
+              f"[{{model_times[-1]:.1f}} h this model, {{(time.time()-start)/3600:.1f}} h total]")
     except Exception as e:
         print(key, 'FAILED:', e)
 print('\\nChunk {letter} elapsed %.1f h.' % ((time.time()-start)/3600))
@@ -449,13 +470,12 @@ echo done
     cells.append(code("""
 import time
 from pathlib import Path
-from scripts._common import run_profile_for_model, run_behavior_for_model, save_json
+from scripts._common import run_profile_for_model, run_behavior_for_model, save_json, time_guard
 from rhp.panel import load_panel, model_cfg, lineage_chain, lineage_sibling
 
 config = load_panel(CONFIG)
 LINEAGES = ['qwen', 'llama', 'gemma', 'mistral']     # edit to taste
 SEED = 42
-TIME_BUDGET_HOURS = 18.0          # backstop; most base/instruct are already on Drive from the chunks
 
 # collect every model needed by the chosen lineages (chain rings + siblings)
 needed = []
@@ -468,25 +488,29 @@ print('models needed:', needed)
 
 prof = Path(RESULTS_DIR)/'profile'; beh = Path(RESULTS_DIR)/'behavior'
 prof.mkdir(parents=True, exist_ok=True); beh.mkdir(parents=True, exist_ok=True)
-start = time.time()
+start = time.time(); model_times = []
 for key in needed:
-    if time.time() - start > TIME_BUDGET_HOURS*3600:
-        print('Time budget reached — re-run to resume.'); break
     cfg = model_cfg(config, key)
-    pout = prof / f'{key}_seed{SEED}.json'
+    pout = prof / f'{key}_seed{SEED}.json'; bout = beh / f'{key}_seed{SEED}.json'
+    if pout.exists() and bout.exists():
+        print(key, 'done -> skip'); continue
+    ok, elapsed_h, est_h = time_guard(start, model_times, first_est_h=12.0)  # profile+behaviour incl. 9B
+    if not ok:
+        print(f'STOP at {key}: {elapsed_h:.1f} h + est {est_h:.1f} h > 23 h cap. Re-run to resume.'); break
+    t0 = time.time()
     if not pout.exists():
         try:
             save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), pout)
             print(key, 'profile saved')
         except Exception as e:
             print(key, 'profile FAILED:', e)
-    bout = beh / f'{key}_seed{SEED}.json'
     if not bout.exists():
         try:
             r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
             save_json(r, bout); print(key, 'behaviour saved')
         except Exception as e:
             print(key, 'behaviour FAILED:', e)
+    model_times.append((time.time() - t0) / 3600)
 print('Phase A done.')
 """))
     cells.append(md("## Phase B (CPU) — inheritance analysis (E10–E15)"))
@@ -623,6 +647,11 @@ def nb_robustness() -> dict:
         "Targeted robustness checks that re-use the same helpers with different "
         "knobs. Each task is independent and resume-safe; run only the ones you "
         "need.\n\n"
+        "**24 h:** every GPU task here touches only **≤3 core models, "
+        "detection-only (no long-context behaviour)**, so each task is bounded to "
+        "≈3–9 h by construction — well under Colab's limit. Run **one task per "
+        "session** (don't run all GPU cells back-to-back) and each is safe; "
+        "results are resume-safe to Drive.\n\n"
         "| Task | Proposal item | What changes |\n|---|---|---|\n"
         "| R1 | threshold robustness | re-derive heads at τ∈{.05,.1,.2,.3} from saved scores (no GPU) |\n"
         "| R3 | coverage robustness | freq signature at coverage∈{.3,.5,1.0} on 3 core models |\n"
@@ -899,7 +928,7 @@ def main() -> None:
         print("wrote", path, f"({len(nb['cells'])} cells)")
     print(f"\n{len(prof_chunks)} profile chunk(s) x {PROFILE_CHUNK} models, "
           f"{len(beh_chunks)} behaviour chunk(s) x {BEHAVIOR_CHUNK} models; "
-          f"<= {TIME_BUDGET_HOURS} h each.")
+          f"adaptive {HARD_CAP_H} h cap per notebook (< 24 h Colab limit).")
 
 
 if __name__ == "__main__":
