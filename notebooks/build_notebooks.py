@@ -25,13 +25,13 @@ CONFIG_PATH = NB_DIR.parent / "configs" / "panel.yaml"
 # Conservative per-model wall-clock estimates on an L4 (8-bit). Used only to size
 # the chunks so each notebook finishes well inside a 24 h Colab session; the
 # TIME_BUDGET_HOURS guard inside every notebook is the hard backstop.
-EST_PROFILE_H = 3.5
-EST_BEHAVIOR_H = 2.5
-PROFILE_CHUNK = 5          # 5 × 3.5 h ≈ 17.5 h nominal
-BEHAVIOR_CHUNK = 7         # 7 × 2.5 h ≈ 17.5 h nominal
+EST_PROFILE_H = 4.0        # pilot measured 3.2–4.3 h/model
+EST_BEHAVIOR_H = 3.5       # long-context (≤32k) sweep + harder RULER
+PROFILE_CHUNK = 4          # 4 × 4.0 h ≈ 16 h nominal
+BEHAVIOR_CHUNK = 5         # 5 × 3.5 h ≈ 17.5 h nominal
 # Backstop guard. Checked BEFORE each model, so the worst-case finish is
-# budget + one model (≈3.5 h) — kept under 24 h with margin.
-TIME_BUDGET_HOURS = 20
+# budget + one model (≈4.3 h) — kept under 24 h with margin.
+TIME_BUDGET_HOURS = 18
 
 
 def panel_model_order() -> list[str]:
@@ -197,7 +197,7 @@ from rhp.panel import load_panel, model_cfg
 config = load_panel(CONFIG)
 PILOT = ['llama32_3b', 'qwen25_7b', 'olmo2_7b']
 SEED = 42
-TIME_BUDGET_HOURS = 16.0          # 3 models × ~6 h (profile+behaviour) ≈ 18 h < 24 h
+TIME_BUDGET_HOURS = 14.0          # profile (~4 h) + long-ctx behaviour (~3.5 h) per model
 
 prof_dir = Path(RESULTS_DIR) / 'profile'; prof_dir.mkdir(parents=True, exist_ok=True)
 beh_dir  = Path(RESULTS_DIR) / 'behavior'; beh_dir.mkdir(parents=True, exist_ok=True)
@@ -229,7 +229,9 @@ for key in PILOT:
             res = run_behavior_for_model(key, model_cfg(config, key), config, seed=SEED)
             res['family'] = model_cfg(config, key).get('family')
             save_json(res, bout)
-            print(key, 'behaviour: NIAH overall =', round(res['behavior']['niah_overall'], 3))
+            b = res['behavior']
+            print(key, 'behaviour: NIAH_long =', round(b['niah_long'], 3),
+                  '| per-context =', b.get('niah_per_context'))
         except Exception as e:
             print(key, 'behaviour FAILED:', e)
 
@@ -377,7 +379,11 @@ def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
         f"`TIME_BUDGET_HOURS={TIME_BUDGET_HOURS}` backstop. ≤3B models automatically "
         f"get the long-context lengths (8192/16384).")]
     cells += setup_cells()
-    cells.append(md(f"## Behaviour for this chunk ({len(models)} models, seed 42)"))
+    cells.append(md(f"## Behaviour for this chunk ({len(models)} models, seed 42)\n"
+                    "Long-context NIAH sweep (4k→32k, per-context sample schedule "
+                    "from `config['behavior']`) + the harder RULER subset. `niah_long` "
+                    "(≥16k) is the RQ2 target with real variance — short-context NIAH "
+                    "saturates."))
     cells.append(code(f"""
 import time
 from pathlib import Path
@@ -390,7 +396,6 @@ SEED = 42
 TIME_BUDGET_HOURS = {TIME_BUDGET_HOURS}
 DO_RULER = True
 
-small = config['niah'].get('context_lengths_small')
 OUT = Path(RESULTS_DIR) / 'behavior'; OUT.mkdir(parents=True, exist_ok=True)
 start = time.time()
 for key in MODEL_SUBSET:
@@ -400,15 +405,14 @@ for key in MODEL_SUBSET:
     if time.time() - start > TIME_BUDGET_HOURS * 3600:
         print('Time budget reached — re-run this notebook to resume at', key); break
     cfg = model_cfg(config, key)
-    ctx = small if (small and any(t in key for t in ('3b','2b','1_6b','mini'))) else None
     try:
-        res = run_behavior_for_model(key, cfg, config, seed=SEED,
-                                     context_lengths=ctx, do_ruler=DO_RULER)
+        # context schedule is read from config['behavior'] inside the helper
+        res = run_behavior_for_model(key, cfg, config, seed=SEED, do_ruler=DO_RULER)
         res['family'] = cfg.get('family')
         save_json(res, out)
         b = res['behavior']
-        print(f"{{key}}: NIAH overall={{b['niah_overall']:.3f}} "
-              f"worst_pos={{b['niah_worst_pos']:.3f}}  "
+        print(f"{{key}}: NIAH_long={{b['niah_long']:.3f}} overall={{b['niah_overall']:.3f}} "
+              f"per_ctx={{b.get('niah_per_context')}}  "
               f"[{{(time.time()-start)/3600:.1f}} h elapsed]")
     except Exception as e:
         print(key, 'FAILED:', e)

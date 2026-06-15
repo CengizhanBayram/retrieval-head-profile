@@ -33,8 +33,12 @@ logger = logging.getLogger(__name__)
 
 # Default profile predictors and behavioural targets (column names in the table).
 PROFILE_PREDICTORS = ["n_heads", "frac", "gini", "zero_fraction", "layer_com",
-                      "detector_jaccard", "freq_com", "freq_width", "knockout_drop"]
-BEHAVIOR_TARGETS = ["niah_overall", "niah_worst_pos", "ruler_mean"]
+                      "detector_jaccard", "freq_com", "freq_width",
+                      "frequency_effect", "knockout_drop"]
+# Long-context NIAH + the two discriminating RULER tasks carry the variance;
+# plain niah_overall saturates at short context (pilot finding) so it is not the
+# primary target.
+BEHAVIOR_TARGETS = ["niah_long", "ruler_multivalue", "ruler_vartrack", "niah_overall"]
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +63,12 @@ def build_table(results: list[dict]) -> pd.DataFrame:
         for k in PROFILE_PREDICTORS:
             row[k] = scalars.get(k, np.nan)
         row["niah_overall"] = beh.get("niah_overall", np.nan)
+        row["niah_long"] = beh.get("niah_long", beh.get("niah_overall", np.nan))
         row["niah_worst_pos"] = beh.get("niah_worst_pos", np.nan)
+        # per-task RULER (the discriminating targets) + the mean
+        row["ruler_multikey"] = ruler_means.get("multikey", np.nan)
+        row["ruler_multivalue"] = ruler_means.get("multivalue", np.nan)
+        row["ruler_vartrack"] = ruler_means.get("vartrack", np.nan)
         row["ruler_mean"] = float(np.mean(list(ruler_means.values()))) if ruler_means else np.nan
         rows.append(row)
     return pd.DataFrame(rows)

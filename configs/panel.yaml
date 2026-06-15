@@ -267,14 +267,37 @@ lineages:
 # NIAH / profile / behavioural hyperparameters. Mirrors the Part-1 `niah`
 # block; values reflect proposal §3.3 and Block A/B specs.
 # ---------------------------------------------------------------------------
+# `niah` drives the PROFILE detector (E1–E3): heads are detected at a single
+# context (4096; see run_profile_for_model). These positions + sample budget are
+# what the two detectors and the knockout use.
 niah:
-  context_lengths: [1024, 2048, 4096]
-  context_lengths_small: [1024, 2048, 4096, 8192, 16384]   # used for ≤3B models (E6)
+  context_lengths: [1024, 2048, 4096]      # legacy; profile detection uses 4096
   needle_positions: [0.1, 0.25, 0.5, 0.75, 0.9]
   n_samples: 200                 # profile sample budget; R6 sweeps 100 vs 200
   score_threshold: 0.1           # R1 sweeps τ ∈ {0.05, 0.1, 0.2, 0.3}
   threshold_sweep: [0.05, 0.1, 0.2, 0.3]
   seeds: [42, 123, 2024]
+
+# `behavior` drives the E6 long-context NIAH sweep — the RQ2 target. The pilot
+# showed plain NIAH saturates at ≤4096 (every model 1.0 → zero variance), so the
+# sweep runs at LONG context where models actually differ (OLMo-2 is 4k-native →
+# fails by 16k; Llama-3.1 is 128k-native → holds). Per-context sample counts
+# DECREASE with length to keep one model ≈5 h (24 h-safe chunking). An OOM at the
+# longest length is caught and stored as NaN — itself informative (the model
+# cannot reach that length). `niah_long` (mean over contexts ≥ the threshold) is
+# the primary RQ2 target; `ruler_multivalue`/`ruler_vartrack` are the others.
+behavior:
+  context_schedule:
+    4096: 60
+    8192: 36
+    16384: 20
+    32768: 10
+  needle_positions: [0.1, 0.5, 0.9]
+  long_context_threshold: 16384
+  # --- optional HIGH / stress variant (experiment; ~2× cost — watch the 24 h
+  #     budget; re-chunk behaviour notebooks smaller). Swap the two keys above for:
+  # context_schedule: {8192: 60, 16384: 40, 32768: 24, 65536: 12}
+  # needle_positions: [0.1, 0.25, 0.5, 0.75, 0.9]
 
 profile:
   # Frequency-signature sweep (E2): k = head_dim/8 window, 8 spectral positions.
@@ -288,14 +311,16 @@ activation_patching:
   k_dims: 16
 
 ruler:
-  # E7 subset; keep small and defensible (proposal §3.3).
+  # E7 subset; harder + longer than the proposal minimum so the tasks don't
+  # saturate (the pilot showed multikey near-ceiling at 4 keys / 4k). multivalue
+  # and vartrack already discriminate; the longer context spreads multikey too.
   tasks: ["multikey", "multivalue", "vartrack"]
-  context_lengths: [2048, 4096]
-  n_samples: 100
+  context_lengths: [4096, 8192]
+  n_samples: 60
   seeds: [42, 123]
-  multikey_n_keys: 4
-  multivalue_n_values: 3
-  vartrack_chain_len: 4
+  multikey_n_keys: 6
+  multivalue_n_values: 4
+  vartrack_chain_len: 6
 
 output:
   results_dir: "./results"

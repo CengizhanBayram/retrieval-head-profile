@@ -107,8 +107,8 @@ retrieval-head-profile/
 ├── notebooks/              # Colab "tasks", each chunk ≤24 h, resume-safe to Drive
 │   ├── build_notebooks.py  # regenerates/re-chunks the .ipynb files from panel.yaml
 │   ├── 00_pilot_colab.ipynb
-│   ├── 01a–01d_profile_chunk_colab.ipynb   # Block A, 4 chunks × 5 models
-│   ├── 02a–02c_behavior_chunk_colab.ipynb  # Block B, 3 chunks × 7 models
+│   ├── 01a–01e_profile_chunk_colab.ipynb   # Block A, 5 chunks × 4 models
+│   ├── 02a–02d_behavior_chunk_colab.ipynb  # Block B, 4 chunks × 5 models (long-context)
 │   ├── 03_inheritance_colab.ipynb
 │   ├── 04_prediction_analysis_colab.ipynb
 │   └── 05_robustness_optional_colab.ipynb
@@ -232,9 +232,9 @@ behaviour chunks are independent and can run in **parallel Colab accounts**.
 
 | Notebook | Task | GPU |
 |---|---|---|
-| `00_pilot_colab.ipynb` | WP1 pilot — full pipeline on 3 models (~18 h) | L4 |
-| `01a–01d_profile_chunk_colab.ipynb` | Block A (E1–E5) · 4 chunks × 5 models (chunk A = the 5 core) | L4 |
-| `02a–02c_behavior_chunk_colab.ipynb` | Block B (E6–E7) · 3 chunks × 7 models | L4 |
+| `00_pilot_colab.ipynb` | WP1 pilot — full pipeline on 2–3 models | L4 |
+| `01a–01e_profile_chunk_colab.ipynb` | Block A (E1–E5) · 5 chunks × 4 models (chunk A = the 5 core) | L4 |
+| `02a–02d_behavior_chunk_colab.ipynb` | Block B (E6 long-context NIAH + E7 RULER) · 4 chunks × 5 models | L4 |
 | `03_inheritance_colab.ipynb` | Block C (E10–E15): profile the 4 quant rings + CPU analysis | L4 |
 | `04_prediction_analysis_colab.ipynb` | E8 + E9 | **None (CPU)** |
 | `05_robustness_optional_colab.ipynb` | R1/R3/R4/R6/R7 + O-series | L4 |

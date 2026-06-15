@@ -146,8 +146,9 @@ def compare_frequency(parent: dict, child: dict) -> dict:
 def behavior_bridge(parent: dict, child: dict) -> dict:
     """Pair the behavioural delta with the profile delta (E13 / RQ4 input)."""
     def _niah(r):
+        # Long-context NIAH is the meaningful axis; fall back to overall if absent.
         b = r.get("behavior", {})
-        return b.get("niah_overall", float("nan"))
+        return b.get("niah_long", b.get("niah_overall", float("nan")))
 
     def _ruler(r):
         b = r.get("behavior", {}).get("ruler", {})

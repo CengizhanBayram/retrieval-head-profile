@@ -282,11 +282,16 @@ def run_behavior_for_model(
     from rhp.loader import load_model_any as load_model
     from rhp.ruler import RulerEvaluator
 
-    niah = config["niah"]
     rcfg = config.get("ruler", {})
-    context_lengths = context_lengths or niah["context_lengths"]
-    positions = niah["needle_positions"]
-    n_samples = n_samples or niah.get("n_samples", 200)
+    behcfg = config.get("behavior", {})
+    # Long-context schedule: per-context sample counts (fewer samples as context
+    # grows). The RQ2 target needs variance, which lives at long context.
+    schedule_raw = behcfg.get("context_schedule") or {4096: 60, 8192: 36, 16384: 20, 32768: 10}
+    schedule = {int(k): int(v) for k, v in schedule_raw.items()}
+    positions = behcfg.get("needle_positions") or config["niah"]["needle_positions"]
+    long_thresh = int(behcfg.get("long_context_threshold", 16384))
+    # Allow an explicit override (e.g. the pilot passes a shorter list).
+    ctxs = sorted(context_lengths) if context_lengths else sorted(schedule)
 
     set_determinism(seed)
     t0 = time.time()
@@ -294,22 +299,33 @@ def run_behavior_for_model(
     try:
         model, tok = load_model(model_cfg, model_key)
 
-        # E6 — NIAH behavioural sweep
+        # E6 — NIAH behavioural sweep, one context at a time so each length gets
+        # its own (decreasing) sample budget; OOM at a length → NaN row.
         ev = NIAHEvaluator(model, tok, config, seed=seed)
-        acc = ev.evaluate(context_lengths, positions, n_samples)   # (ctx, pos)
-        acc = np.asarray(acc, dtype=float)
+        rows, per_ctx = [], {}
+        for c in ctxs:
+            n_c = schedule.get(c, n_samples or 40)
+            acc_c = np.asarray(ev.evaluate([c], positions, n_c), dtype=float)  # (1, n_pos)
+            rows.append(acc_c[0])
+            per_ctx[c] = float(np.nanmean(acc_c))
+            logger.info("[%s] NIAH @ %d (n=%d): %.3f", model_key, c, n_c, per_ctx[c])
+        acc = np.vstack(rows)                       # (n_ctx, n_pos)
         overall = float(np.nanmean(acc))
-        # worst position-averaged-over-context (a "lost-in-the-middle" target)
         per_pos = np.nanmean(acc, axis=0)
         worst_pos = float(np.nanmin(per_pos))
+        long_ctxs = [c for c in ctxs if c >= long_thresh]
+        niah_long = (float(np.nanmean([per_ctx[c] for c in long_ctxs]))
+                     if long_ctxs else overall)
 
         behavior = {
             "niah_matrix": acc.tolist(),
-            "context_lengths": context_lengths,
+            "context_lengths": ctxs,
             "needle_positions": positions,
             "niah_overall": overall,
+            "niah_long": niah_long,                 # primary RQ2 target (≥ long_thresh)
             "niah_worst_pos": worst_pos,
             "niah_per_position": per_pos.tolist(),
+            "niah_per_context": {str(c): per_ctx[c] for c in ctxs},
         }
 
         # E7 — RULER subset
@@ -334,8 +350,8 @@ def run_behavior_for_model(
             "elapsed_sec": round(time.time() - t0, 1),
             "environment": capture_environment(),
         }
-        logger.info("[%s] behaviour done in %.0fs: NIAH overall=%.3f", model_key,
-                    result["elapsed_sec"], overall)
+        logger.info("[%s] behaviour done in %.0fs: NIAH overall=%.3f long=%.3f",
+                    model_key, result["elapsed_sec"], overall, niah_long)
         return result
     finally:
         model = tok = None
