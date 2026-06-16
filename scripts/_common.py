@@ -345,13 +345,19 @@ def run_behavior_for_model(
         long_ctxs = [c for c in ctxs if c >= long_thresh]
         niah_long = (float(np.nanmean([per_ctx[c] for c in long_ctxs]))
                      if long_ctxs else overall)
+        # Continuous long-context-ability scalar: the largest context whose recall
+        # stays ≥ 0.5 (0 if none). Spreads modern long-context models that all
+        # saturate niah_long — OLMo 4k, Gemma 8k, Qwen 32k, Llama 32k+.
+        reliable = [c for c in ctxs if per_ctx[c] == per_ctx[c] and per_ctx[c] >= 0.5]
+        niah_maxlen = float(max(reliable)) if reliable else 0.0
 
         behavior = {
             "niah_matrix": acc.tolist(),
             "context_lengths": ctxs,
             "needle_positions": positions,
             "niah_overall": overall,
-            "niah_long": niah_long,                 # primary RQ2 target (≥ long_thresh)
+            "niah_long": niah_long,                 # mean recall at ≥ long_thresh
+            "niah_maxlen": niah_maxlen,             # primary RQ2 target (max reliable context)
             "niah_worst_pos": worst_pos,
             "niah_per_position": per_pos.tolist(),
             "niah_per_context": {str(c): per_ctx[c] for c in ctxs},

@@ -24,7 +24,7 @@ Legend — **Code**: module/function in `rhp/` or the inherited `src/`.
 
 | Exp | What | Code | NB | Out |
 |---|---|---|---|---|
-| **E6** | **Long-context** NIAH sweep (4k→32k, per-context sample schedule), "lost-in-the-middle" depth. Short NIAH saturates (pilot: every model 1.0), so `niah_long` (≥16k) is the RQ2 target with variance | `src.NIAHEvaluator.evaluate` per context via `scripts._common.run_behavior_for_model` | 00, 02 | `behavior/<m>.json` → `niah_matrix`, `niah_per_context`, **`niah_long`**, `niah_overall`, `niah_worst_pos` |
+| **E6** | **Long-context** NIAH sweep (4k→32k, per-context sample schedule), "lost-in-the-middle" depth. Short NIAH saturates (pilot: every model 1.0); the RQ2 targets are **`niah_maxlen`** (largest context with recall ≥ 0.5 — continuous: OLMo 4k vs Qwen/Llama 32k) and `niah_long` (mean recall ≥16k) | `src.NIAHEvaluator.evaluate` per context via `scripts._common.run_behavior_for_model` | 00, 02 | `behavior/<m>.json` → `niah_matrix`, `niah_per_context`, **`niah_maxlen`**, **`niah_long`**, `niah_overall` |
 | **E7** | RULER subset: multi-key, multi-value, variable tracking | `rhp.ruler.RulerEvaluator.run` | 00, 02 | `behavior.ruler` |
 | **E8** | Profile → behaviour prediction: BH-corrected Spearman, LOO ≤3-predictor regression, family-demeaned. Targets = `niah_long`, `ruler_multivalue`, `ruler_vartrack` (the ones with variance), not saturated `niah_overall` | `rhp.prediction.run_prediction_analysis` | 04 (CPU) | `analysis/prediction_e8.json` |
 | **E9** | Profile test-retest (reliability ceiling for E8) | `rhp.prediction.test_retest` | 04 (CPU) | `analysis/test_retest_e9.json` |

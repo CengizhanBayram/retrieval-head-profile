@@ -37,8 +37,9 @@ PROFILE_PREDICTORS = ["n_heads", "frac", "gini", "zero_fraction", "layer_com",
                       "frequency_effect", "knockout_drop"]
 # Long-context NIAH + the two discriminating RULER tasks carry the variance;
 # plain niah_overall saturates at short context (pilot finding) so it is not the
-# primary target.
-BEHAVIOR_TARGETS = ["niah_long", "ruler_multivalue", "ruler_vartrack", "niah_overall"]
+# primary target. `niah_maxlen` (largest context with recall ≥ 0.5) is the most
+# continuous long-context-ability target.
+BEHAVIOR_TARGETS = ["niah_maxlen", "niah_long", "ruler_multivalue", "ruler_vartrack"]
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +65,14 @@ def build_table(results: list[dict]) -> pd.DataFrame:
             row[k] = scalars.get(k, np.nan)
         row["niah_overall"] = beh.get("niah_overall", np.nan)
         row["niah_long"] = beh.get("niah_long", beh.get("niah_overall", np.nan))
+        # niah_maxlen: use stored value, else backfill from per-context recall
+        # (keeps results produced before this field was added usable).
+        maxlen = beh.get("niah_maxlen")
+        if maxlen is None:
+            pc = beh.get("niah_per_context", {}) or {}
+            rel = [int(c) for c, v in pc.items() if v is not None and v == v and v >= 0.5]
+            maxlen = float(max(rel)) if rel else np.nan
+        row["niah_maxlen"] = maxlen
         row["niah_worst_pos"] = beh.get("niah_worst_pos", np.nan)
         # per-task RULER (the discriminating targets) + the mean
         row["ruler_multikey"] = ruler_means.get("multikey", np.nan)
