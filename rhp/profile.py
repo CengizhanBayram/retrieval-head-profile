@@ -237,7 +237,8 @@ def build_profile(
         "layer_profile": lp,
         # E5
         "gqa": gqa,
-        # filled by E2 / E12+C4 / E3 when present
+        # filled by E2 / E12+C4 / E3 when present (M7 utility is a SEPARATE
+        # experiment, stored in results/utility/<model>.json, not here)
         "freq_signature": freq_summary,
         "freq_patch": freq_patch_summary,
         "knockout": knockout_summary,

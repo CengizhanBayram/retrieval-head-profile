@@ -400,3 +400,69 @@ def run_behavior_for_model(
             purge_hf_cache(model_cfg["hf_id"])
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# M7 — dimension-utility signature (SEPARATE experiment) for one model
+# ---------------------------------------------------------------------------
+
+def run_utility_for_model(
+    model_key: str,
+    model_cfg: dict,
+    config: dict,
+    *,
+    argmax_heads: list,
+    argmax_scores: list,
+    seed: int = 42,
+) -> dict:
+    """
+    Run M7 (dimension-utility d-test) on one model, reusing its already-saved
+    retrieval-head set. Weight-space only (no generation): loads the model, takes
+    Q-projection norms, computes the utility signature, unloads. Cheap.
+
+    ``argmax_heads`` / ``argmax_scores`` come from the model's existing profile
+    JSON, so this never re-detects heads.
+    """
+    import numpy as np
+
+    from src.model_loader import purge_hf_cache
+    from src.repro import capture_environment, set_determinism
+    from src.dimension_utility import DimensionUtilityAnalyzer
+
+    from rhp.loader import load_model_any as load_model
+    from rhp.utility import utility_signature
+
+    set_determinism(seed)
+    t0 = time.time()
+    model = tok = None
+    try:
+        model, tok = load_model(model_cfg, model_key)
+        analyzer = DimensionUtilityAnalyzer(model, config)
+        norms = analyzer.compute_query_projection_norms()
+        heads = [tuple(h) for h in argmax_heads]
+        scores = np.asarray(argmax_scores, dtype=float)
+        summary = utility_signature(analyzer, norms, scores, heads)
+        result = {
+            "model": model_key,
+            "hf_id": model_cfg.get("hf_id"),
+            "family": model_cfg.get("family", "unknown"),
+            "seed": seed,
+            "utility": summary,
+            "elapsed_sec": round(time.time() - t0, 1),
+            "environment": capture_environment(),
+        }
+        logger.info("[%s] M7 utility done in %.0fs: d=%.3f", model_key,
+                    result["elapsed_sec"], summary["cohens_d"])
+        return result
+    finally:
+        model = tok = None
+        gc.collect()
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        try:
+            purge_hf_cache(model_cfg["hf_id"])
+        except Exception:
+            pass

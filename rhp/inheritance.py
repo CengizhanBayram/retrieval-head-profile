@@ -140,6 +140,35 @@ def compare_frequency(parent: dict, child: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# M7 — utility-signature inheritance (4th axis; from the separate M7 experiment)
+# ---------------------------------------------------------------------------
+
+def compare_utility(parent: dict, child: dict) -> dict:
+    """
+    Does the weight-space dimension-utility signature survive the ring (M7)?
+
+    Reads the utility summary merged onto each result (from
+    ``results/utility/<model>.json``). Reports the change in Cohen's d and
+    whether its *sign* (retrieval heads higher/lower utility than the rest) is
+    preserved — the inheritance question on the v1 Layer-A axis.
+    """
+    pu = parent.get("utility", {}) or {}
+    cu = child.get("utility", {}) or {}
+    pd_, cd_ = pu.get("cohens_d", float("nan")), cu.get("cohens_d", float("nan"))
+    sign_preserved = None
+    if pd_ == pd_ and cd_ == cd_:
+        sign_preserved = bool(np.sign(pd_) == np.sign(cd_))
+    return {
+        "parent_cohens_d": pd_,
+        "child_cohens_d": cd_,
+        "delta_cohens_d": cd_ - pd_,
+        "sign_preserved": sign_preserved,
+        "parent_verdict": pu.get("hypothesis_supported"),
+        "child_verdict": cu.get("hypothesis_supported"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # E13 — behaviour bridge
 # ---------------------------------------------------------------------------
 
@@ -183,6 +212,7 @@ def compare_ring(parent: dict, child: dict, *, lineage: str = "") -> dict:
         "E10_identity": compare_identity(parent, child),
         "E11_function": compare_function(parent, child),
         "E12_frequency": compare_frequency(parent, child),
+        "M7_utility": compare_utility(parent, child),
         "E13_bridge": behavior_bridge(parent, child),
     }
 

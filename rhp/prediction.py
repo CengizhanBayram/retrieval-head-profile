@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 PROFILE_PREDICTORS = ["n_heads", "frac", "gini", "zero_fraction", "layer_com",
                       "detector_jaccard", "freq_com", "freq_width",
                       "frequency_effect", "knockout_drop"]
+# M7 (separate experiment, results/utility/<model>.json) contributes two
+# weight-space predictors when present.
+UTILITY_PREDICTORS = ["utility_cohens_d", "utility_partial_spearman"]
+ALL_PREDICTORS = PROFILE_PREDICTORS + UTILITY_PREDICTORS
 # Long-context NIAH + the two discriminating RULER tasks carry the variance;
 # plain niah_overall saturates at short context (pilot finding) so it is not the
 # primary target. `niah_maxlen` (largest context with recall ≥ 0.5) is the most
@@ -63,6 +67,11 @@ def build_table(results: list[dict]) -> pd.DataFrame:
         row = {"model": r.get("model"), "family": r.get("family", "unknown")}
         for k in PROFILE_PREDICTORS:
             row[k] = scalars.get(k, np.nan)
+        # M7 utility predictors come from the separate utility/<model>.json,
+        # merged onto the result under "utility" by the collector.
+        util = r.get("utility", {}) or {}
+        row["utility_cohens_d"] = util.get("cohens_d", np.nan)
+        row["utility_partial_spearman"] = util.get("partial_spearman", np.nan)
         row["niah_overall"] = beh.get("niah_overall", np.nan)
         row["niah_long"] = beh.get("niah_long", beh.get("niah_overall", np.nan))
         # niah_maxlen: use stored value, else backfill from per-context recall
@@ -93,7 +102,7 @@ def single_correlations(
     targets: list[str] | None = None,
 ) -> pd.DataFrame:
     """Spearman ρ for every (predictor, target), with BH-corrected p-values."""
-    predictors = predictors or [p for p in PROFILE_PREDICTORS if p in df.columns]
+    predictors = predictors or [p for p in ALL_PREDICTORS if p in df.columns]
     targets = targets or [t for t in BEHAVIOR_TARGETS if t in df.columns]
     recs, pvals = [], []
     for p in predictors:
@@ -178,6 +187,43 @@ def family_demeaned_correlation(df: pd.DataFrame, predictor: str, target: str) -
 # E9 — profile test-retest
 # ---------------------------------------------------------------------------
 
+def within_model_reliability(rep_a: dict, rep_b: dict) -> dict:
+    """
+    Head-set reliability ceiling for ONE model from two independent runs (E9).
+
+    ``rep_a``/``rep_b`` are two profile results for the **same** model at two
+    seeds / sample sets. Returns the head-set Jaccard (both detectors) and the
+    dense-score Spearman — the *ceiling* against which an inheritance Jaccard
+    must be read: a base→child Jaccard equal to this reliability means "as
+    similar as the model is to itself" (full preservation), not "changed". This
+    is the denominator the pre-registration uses instead of an absolute 1.0.
+    """
+    from src.stats_utils import jaccard
+    from scipy import stats
+
+    def _heads(r, key):
+        return [tuple(h) for h in r.get(key, [])]
+
+    def _score_spearman(a, b):
+        a, b = np.asarray(a, dtype=float).flatten(), np.asarray(b, dtype=float).flatten()
+        if a.shape != b.shape or len(np.unique(a)) < 2 or len(np.unique(b)) < 2:
+            return float("nan")
+        return float(stats.spearmanr(a, b)[0])
+
+    ja = jaccard(_heads(rep_a, "argmax_heads"), _heads(rep_b, "argmax_heads"))
+    jc = jaccard(_heads(rep_a, "copy_heads"), _heads(rep_b, "copy_heads"))
+    return {
+        "model": rep_a.get("model"),
+        "argmax_jaccard": ja["jaccard"],
+        "copy_jaccard": jc["jaccard"],
+        "argmax_score_spearman": _score_spearman(
+            rep_a.get("argmax_scores"), rep_b.get("argmax_scores")),
+        "copy_score_spearman": _score_spearman(
+            rep_a.get("copy_scores"), rep_b.get("copy_scores")),
+        "seed_a": rep_a.get("seed"), "seed_b": rep_b.get("seed"),
+    }
+
+
 def test_retest(rep1: list[dict], rep2: list[dict], metrics: list[str] | None = None) -> pd.DataFrame:
     """
     Per-metric test-retest correlation between two independent profile runs (E9).
@@ -216,7 +262,7 @@ def run_prediction_analysis(
 ) -> dict:
     """Run E8 (i)+(iii) and a default 3-predictor LOO regression per target."""
     df = build_table(results)
-    predictors = predictors or [p for p in PROFILE_PREDICTORS if p in df.columns]
+    predictors = predictors or [p for p in ALL_PREDICTORS if p in df.columns]
     targets = targets or [t for t in BEHAVIOR_TARGETS if t in df.columns]
 
     corr = single_correlations(df, predictors, targets)

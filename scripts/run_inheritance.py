@@ -52,6 +52,10 @@ def load_model_result(results_dir: Path, model: str, seed: int) -> dict | None:
         with open(bf, encoding="utf-8") as f:
             beh = json.load(f)
         res["behavior"] = beh.get("behavior", {})
+    uf = results_dir / "utility" / f"{model}_seed{seed}.json"
+    if uf.exists():
+        with open(uf, encoding="utf-8") as f:
+            res["utility"] = json.load(f).get("utility", {})
     return res
 
 

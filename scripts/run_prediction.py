@@ -51,6 +51,10 @@ def collect(results_dir: Path, seed: int) -> list[dict]:
         if bf.exists():
             with open(bf, encoding="utf-8") as f:
                 res["behavior"] = json.load(f).get("behavior", {})
+        uf = results_dir / "utility" / f"{model}_seed{seed}.json"
+        if uf.exists():
+            with open(uf, encoding="utf-8") as f:
+                res["utility"] = json.load(f).get("utility", {})
         merged.append(res)
     return merged
 
