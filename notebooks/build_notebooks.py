@@ -33,9 +33,13 @@ BEHAVIOR_CHUNK = 5         # 5 × 3.5 h ≈ 17.5 h nominal
 HARD_CAP_H = 23            # adaptive guard cap (1 h under Colab's 24 h limit)
 
 
+def _load_cfg() -> dict:
+    return yaml.safe_load(open(CONFIG_PATH, encoding="utf-8"))
+
+
 def panel_model_order() -> list[str]:
     """Ordered panel keys, core models first (so they finish early)."""
-    cfg = yaml.safe_load(open(CONFIG_PATH, encoding="utf-8"))
+    cfg = _load_cfg()
     models = cfg.get("models", {})
     core = [k for k, v in models.items() if v.get("tier") == "core"]
     rest = [k for k in models if k not in core]
@@ -82,6 +86,9 @@ def notebook(cells: list[dict], gpu: bool = True) -> dict:
 SETUP_GPU_DRIVE = code("""
 # Cell 0 — GPU check + Google Drive + results dir
 import subprocess, os
+# Reduce CUDA fragmentation BEFORE torch is imported (helps memory-heavy models
+# reach long context). Does not change any numerical result.
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 print(subprocess.check_output('nvidia-smi', shell=True).decode())
 
 USE_DRIVE = True   # keep True so results survive a disconnect and resume
@@ -383,16 +390,23 @@ print(pd.DataFrame(rows).to_string(index=False) if rows else 'No profiles yet.')
 # Notebook 02 — panel behaviour (Block B, E6–E7)
 # ---------------------------------------------------------------------------
 
-def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int) -> dict:
+def nb_behavior_chunk(models: list[str], idx: int, n_chunks: int, gpu_label: str = "L4") -> dict:
     """One behaviour notebook for a fixed chunk of models (sized to < 24 h)."""
     est = len(models) * EST_BEHAVIOR_H
     letter = chr(ord("A") + idx)
+    a100_note = ""
+    if gpu_label == "A100":
+        a100_note = ("\n\n> **Select an A100 runtime** (Runtime → Change runtime type → "
+                     "A100). These are 256-dim-head models (Gemma / Falcon) whose 4k→32k "
+                     "KV cache OOMs on a 24 GB L4; the A100's 40 GB lets them reach their "
+                     "true context limit. The model computation is identical to L4 "
+                     "(same 8-bit weights, corpus, schedule, seed) — only the memory "
+                     "headroom differs, so results stay comparable across the panel.")
     cells = [md(
-        f"# Behaviour · chunk {letter} of {n_chunks} (Block B · E6 NIAH + E7 RULER)\n"
+        f"# Behaviour · {gpu_label} chunk {letter} of {n_chunks} (Block B · E6 NIAH + E7 RULER)\n"
         f"Behavioural targets the profile must predict (RQ2) for **{len(models)} "
-        f"models** (≈{est:.0f} h on an L4): the **long-context** NIAH sweep "
-        f"(4k→32k, E6) and the RULER subset — multi-key, multi-value, variable "
-        f"tracking (E7).\n\n"
+        f"models** (≈{est:.0f} h): the **long-context** NIAH sweep (4k→32k, E6) and "
+        f"the RULER subset (E7).{a100_note}\n\n"
         f"**This chunk's models:**\n\n`{models}`\n\n"
         f"Resume-safe to `behavior/<model>_seed<seed>.json`; an **adaptive 23 h "
         f"guard** keeps every session under Colab's 24 h limit.")]
@@ -894,29 +908,40 @@ print('O5 is a reanalysis hook: when you run E1 with return_mass=True, save the 
 # Emit
 # ---------------------------------------------------------------------------
 
+# The pilot (00) and profile chunks (01*) are DONE and live on GitHub exactly as
+# the user ran them — this generator must NEVER overwrite or delete them.
+PROTECTED_PREFIXES = ("00_", "01")
+
+
 def _clean_old_notebooks() -> None:
-    """Remove previously-emitted .ipynb so a re-chunk doesn't leave stragglers."""
+    """Remove previously-emitted behaviour/analysis .ipynb, but NEVER 00/01."""
     for f in NB_DIR.glob("*_colab.ipynb"):
+        if f.name.startswith(PROTECTED_PREFIXES):
+            continue
         f.unlink()
 
 
 def main() -> None:
     _clean_old_notebooks()
+    cfg = _load_cfg()
     order = panel_model_order()
-    prof_chunks = chunks(order, PROFILE_CHUNK)
-    beh_chunks = chunks(order, BEHAVIOR_CHUNK)
+    # BEHAVIOUR (4k→32k) splits by GPU: 256-dim-head models (Gemma/Falcon) OOM on
+    # 24 GB, so they run on A100 (where the SAME computation just has more memory →
+    # their niah_maxlen reflects the model, not the GPU). Everything else on L4.
+    a100 = {k for k, v in cfg.get("models", {}).items() if (v.get("gpu") or "l4") == "a100"}
+    l4_order = [m for m in order if m not in a100]
+    a100_order = [m for m in order if m in a100]
+    beh_l4 = chunks(l4_order, BEHAVIOR_CHUNK)
+    beh_a100 = chunks(a100_order, BEHAVIOR_CHUNK)
 
-    notebooks: dict[str, dict] = {"00_pilot_colab.ipynb": nb_pilot()}
-
-    # Profile chunks: 01a, 01b, 01c, ...
-    for i, ck in enumerate(prof_chunks):
-        notebooks[f"01{chr(ord('a')+i)}_profile_chunk_colab.ipynb"] = \
-            nb_profile_chunk(ck, i, len(prof_chunks))
-    # Behaviour chunks: 02a, 02b, ...
-    for i, ck in enumerate(beh_chunks):
-        notebooks[f"02{chr(ord('a')+i)}_behavior_chunk_colab.ipynb"] = \
-            nb_behavior_chunk(ck, i, len(beh_chunks))
-
+    # NOTE: 00 pilot and 01 profile chunks are intentionally NOT emitted here.
+    notebooks: dict[str, dict] = {}
+    for i, ck in enumerate(beh_l4):
+        notebooks[f"02{chr(ord('a')+i)}_behavior_L4_colab.ipynb"] = \
+            nb_behavior_chunk(ck, i, len(beh_l4), gpu_label="L4")
+    for i, ck in enumerate(beh_a100):
+        notebooks[f"02_a100_{chr(ord('a')+i)}_behavior_colab.ipynb"] = \
+            nb_behavior_chunk(ck, i, len(beh_a100), gpu_label="A100")
     notebooks["03_inheritance_colab.ipynb"] = nb_inheritance()
     notebooks["04_prediction_analysis_colab.ipynb"] = nb_prediction()
     notebooks["05_robustness_optional_colab.ipynb"] = nb_robustness()
@@ -926,9 +951,9 @@ def main() -> None:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(nb, f, indent=1)
         print("wrote", path, f"({len(nb['cells'])} cells)")
-    print(f"\n{len(prof_chunks)} profile chunk(s) x {PROFILE_CHUNK} models, "
-          f"{len(beh_chunks)} behaviour chunk(s) x {BEHAVIOR_CHUNK} models; "
-          f"adaptive {HARD_CAP_H} h cap per notebook (< 24 h Colab limit).")
+    print(f"\n(00 pilot + 01 profile chunks left untouched.) "
+          f"{len(beh_l4)} behaviour L4 + {len(beh_a100)} A100 chunk(s) "
+          f"[A100: {a100_order}]; adaptive {HARD_CAP_H} h cap each.")
 
 
 if __name__ == "__main__":

@@ -85,13 +85,15 @@ class RulerEvaluator:
         return " ".join(words)
 
     @torch.no_grad()
-    def _generate(self, prompt: str, context_length: int, max_new_tokens: int = 32) -> str:
+    def _generate(self, prompt: str, context_length: int, max_new_tokens: int = 32) -> str | None:
+        """Generate; return None on OOM (so a too-long context skips, not crashes)."""
         device = next(
             (p for p in self.model.parameters() if p.device.type != "meta"),
             next(self.model.parameters()),
         ).device
         enc = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=context_length + 512)
         input_ids = enc["input_ids"].to(device)
+        text: str | None = None
         try:
             out = self.model.generate(
                 input_ids,
@@ -101,6 +103,12 @@ class RulerEvaluator:
                 pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
             )
             text = self.tokenizer.decode(out[0, input_ids.shape[1]:], skip_special_tokens=True)
+        except RuntimeError as exc:
+            if "out of memory" in str(exc).lower():
+                logger.warning("RULER OOM at ctx=%d; skipping sample (not counted).", context_length)
+                gc.collect()
+            else:
+                raise
         finally:
             del input_ids
             if "out" in locals():
@@ -112,7 +120,7 @@ class RulerEvaluator:
 
     def multikey(self, context_length: int, n_keys: int, n_samples: int, seed: int) -> float:
         rng = random.Random(seed)
-        correct = 0
+        correct = total = 0
         for _ in range(n_samples):
             keys = rng.sample(_WORDS, k=min(n_keys, len(_WORDS)))
             vals = {k: _rand_num(rng) for k in keys}
@@ -121,13 +129,17 @@ class RulerEvaluator:
             ctx = self._embed(facts, context_length, rng)
             prompt = (f"{ctx}\n\nWhat is the magic {target} number? "
                       f"Answer with the number only.\n\nAnswer:")
-            if vals[target] in self._generate(prompt, context_length):
+            gen = self._generate(prompt, context_length)
+            if gen is None:           # OOM at this context → skip, don't count
+                continue
+            total += 1
+            if vals[target] in gen:
                 correct += 1
-        return correct / n_samples
+        return correct / total if total else float("nan")
 
     def multivalue(self, context_length: int, n_values: int, n_samples: int, seed: int) -> float:
         rng = random.Random(seed + 1)
-        correct = 0
+        correct = total = 0
         for _ in range(n_samples):
             key = rng.choice(_WORDS)
             values = [_rand_num(rng) for _ in range(n_values)]
@@ -135,14 +147,17 @@ class RulerEvaluator:
             ctx = self._embed(facts, context_length, rng)
             prompt = (f"{ctx}\n\nList all the magic {key} numbers, separated by commas."
                       f"\n\nAnswer:")
-            text = self._generate(prompt, context_length, max_new_tokens=48)
-            if all(v in text for v in values):
+            gen = self._generate(prompt, context_length, max_new_tokens=48)
+            if gen is None:
+                continue
+            total += 1
+            if all(v in gen for v in values):
                 correct += 1
-        return correct / n_samples
+        return correct / total if total else float("nan")
 
     def vartrack(self, context_length: int, chain_len: int, n_samples: int, seed: int) -> float:
         rng = random.Random(seed + 2)
-        correct = 0
+        correct = total = 0
         for _ in range(n_samples):
             root = _rand_num(rng)
             names = [f"VAR_{rng.choice(string.ascii_uppercase)}{i}" for i in range(chain_len)]
@@ -153,9 +168,13 @@ class RulerEvaluator:
             ctx = self._embed(facts, context_length, rng)
             prompt = (f"{ctx}\n\nResolve the chain of assignments. What is the numeric "
                       f"value of {names[-1]}? Answer with the number only.\n\nAnswer:")
-            if root in self._generate(prompt, context_length):
+            gen = self._generate(prompt, context_length)
+            if gen is None:
+                continue
+            total += 1
+            if root in gen:
                 correct += 1
-        return correct / n_samples
+        return correct / total if total else float("nan")
 
     # -- driver --------------------------------------------------------------
 
@@ -187,8 +206,8 @@ class RulerEvaluator:
                     per_seed.append(acc)
                     gc.collect(); torch.cuda.empty_cache()
                 out["tasks"][task][str(ctx)] = {
-                    "mean": float(np.mean(per_seed)),
-                    "std": float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else 0.0,
+                    "mean": float(np.nanmean(per_seed)) if per_seed else float("nan"),
+                    "std": float(np.nanstd(per_seed, ddof=1)) if len(per_seed) > 1 else 0.0,
                     "per_seed": per_seed,
                 }
                 logger.info("E7 RULER %s @ %d: %.3f ± %.3f", task, ctx,
@@ -196,7 +215,7 @@ class RulerEvaluator:
                             out["tasks"][task][str(ctx)]["std"])
         # one scalar per task averaged over contexts, for the E8 table
         out["task_means"] = {
-            t: float(np.mean([out["tasks"][t][str(c)]["mean"] for c in context_lengths]))
+            t: float(np.nanmean([out["tasks"][t][str(c)]["mean"] for c in context_lengths]))
             for t in tasks
         }
         return out

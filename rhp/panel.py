@@ -67,6 +67,21 @@ def core_models(config: dict) -> list[str]:
     return models_by_tier(config, "core")
 
 
+def behavior_gpu(config: dict, key: str) -> str:
+    """GPU class the model's LONG-CONTEXT behaviour needs ('l4' default, 'a100').
+
+    Profile detection is at 4096 and runs on L4 for every model; only the 4k→32k
+    behavioural sweep can OOM on 24 GB for 256-dim-head models (Gemma, Falcon).
+    """
+    return (model_cfg(config, key).get("gpu") or "l4").lower()
+
+
+def models_for_gpu(config: dict, gpu: str, keys: list[str] | None = None) -> list[str]:
+    """Subset of ``keys`` (or all panel keys) whose behaviour GPU matches ``gpu``."""
+    keys = keys if keys is not None else list(config.get("models", {}).keys())
+    return [k for k in keys if behavior_gpu(config, k) == gpu]
+
+
 def family_of(config: dict, key: str) -> str:
     """Family label for a model key (confound axis for E8)."""
     return model_cfg(config, key).get("family", "unknown")

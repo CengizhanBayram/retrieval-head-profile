@@ -117,6 +117,7 @@ models:
     license: "gemma"
     family: "gemma"
     tier: "panel"
+    gpu: "a100"          # 256-dim heads → long-context behaviour OOMs on 24 GB
   gemma2_9b:
     hf_id: "google/gemma-2-9b"
     theta: 10000
@@ -126,6 +127,7 @@ models:
     license: "gemma"
     family: "gemma"
     tier: "core"
+    gpu: "a100"          # 256-dim heads, 42 layers → behaviour needs A100 (40 GB)
   gemma2_9b_it:
     hf_id: "google/gemma-2-9b-it"
     theta: 10000
@@ -135,6 +137,7 @@ models:
     license: "gemma"
     family: "gemma"
     tier: "panel"
+    gpu: "a100"
   # ---- Other families ----------------------------------------------------
   mistral7b_v03:
     hf_id: "mistralai/Mistral-7B-v0.3"
@@ -191,6 +194,7 @@ models:
     license: "falcon-llm-license"
     family: "falcon"
     tier: "panel"
+    gpu: "a100"          # 256-dim heads → long-context behaviour safer on A100
   stablelm2_elle:
     hf_id: "stabilityai/stablelm-2-1_6b"
     theta: 10000
@@ -242,6 +246,7 @@ quant_models:
     head_dim: 256
     license: "gemma"
     family: "gemma"
+    gpu: "a100"          # 256-dim KV is fp16 regardless of 4-bit weights → A100
 
 # ---------------------------------------------------------------------------
 # Inheritance lineages (proposal §3.4). Each is an ORDERED chain of rings; the

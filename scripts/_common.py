@@ -330,14 +330,18 @@ def run_behavior_for_model(
 
         # E6 — NIAH behavioural sweep, one context at a time so each length gets
         # its own (decreasing) sample budget; OOM at a length → NaN row.
+        import torch as _torch
         ev = NIAHEvaluator(model, tok, config, seed=seed)
         rows, per_ctx = [], {}
         for c in ctxs:
             n_c = schedule.get(c, n_samples or 40)
             acc_c = np.asarray(ev.evaluate([c], positions, n_c), dtype=float)  # (1, n_pos)
             rows.append(acc_c[0])
-            per_ctx[c] = float(np.nanmean(acc_c))
+            with np.errstate(invalid="ignore"):           # all-NaN row (OOM) → NaN, quietly
+                per_ctx[c] = float(np.nanmean(acc_c))
             logger.info("[%s] NIAH @ %d (n=%d): %.3f", model_key, c, n_c, per_ctx[c])
+            # free between contexts so long-context OOM fragmentation doesn't carry over
+            _gc.collect(); _torch.cuda.empty_cache()
         acc = np.vstack(rows)                       # (n_ctx, n_pos)
         overall = float(np.nanmean(acc))
         per_pos = np.nanmean(acc, axis=0)
@@ -363,18 +367,29 @@ def run_behavior_for_model(
             "niah_per_context": {str(c): per_ctx[c] for c in ctxs},
         }
 
-        # E7 — RULER subset
+        # E7 — RULER subset. Wrapped so a memory-heavy model that OOMs here still
+        # keeps its NIAH result (Gemma-2-9B at 256-dim heads is borderline on 24 GB).
         if do_ruler and rcfg:
-            rev = RulerEvaluator(model, tok, config, seed=seed)
-            behavior["ruler"] = rev.run(
-                rcfg.get("tasks", ["multikey", "multivalue", "vartrack"]),
-                rcfg.get("context_lengths", [2048, 4096]),
-                rcfg.get("n_samples", 100),
-                rcfg.get("seeds", [42, 123]),
-                n_keys=rcfg.get("multikey_n_keys", 4),
-                n_values=rcfg.get("multivalue_n_values", 3),
-                chain_len=rcfg.get("vartrack_chain_len", 4),
-            )
+            try:
+                rev = RulerEvaluator(model, tok, config, seed=seed)
+                behavior["ruler"] = rev.run(
+                    rcfg.get("tasks", ["multikey", "multivalue", "vartrack"]),
+                    rcfg.get("context_lengths", [2048, 4096]),
+                    rcfg.get("n_samples", 100),
+                    rcfg.get("seeds", [42, 123]),
+                    n_keys=rcfg.get("multikey_n_keys", 4),
+                    n_values=rcfg.get("multivalue_n_values", 3),
+                    chain_len=rcfg.get("vartrack_chain_len", 4),
+                )
+            except Exception as exc:
+                logger.warning("[%s] RULER failed (%s); saving NIAH-only behaviour.", model_key, exc)
+                behavior["ruler"] = {"error": str(exc)}
+                _gc.collect()
+                try:
+                    import torch as _t
+                    _t.cuda.empty_cache()
+                except Exception:
+                    pass
 
         result = {
             "model": model_key,

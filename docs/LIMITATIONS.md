@@ -50,9 +50,17 @@ new ones concern the profile and the inheritance claim.
 
 - **L11 — NIAH/RULER are synthetic.** The behavioural targets are retrieval-style
   tasks; the profile is *not* claimed to predict reasoning or summarisation.
-- **L12 — Single-GPU context ceiling.** Profiles are extracted at ≤4096 tokens on
-  24 GB (≤16384 for ≤3B). Long-context behaviour beyond that is observed only on
-  smaller models; the A100 path (optional) extends it.
+- **L12 — Single-GPU context ceiling.** Profiles are detected at 4096 tokens. The
+  behavioural NIAH sweep goes to 32k, but **memory-heavy models cannot reach the
+  longest contexts on 24 GB**: Gemma-2-9B (256-dim heads, 42 layers) OOMs at ≥8k,
+  so its `niah_maxlen` is GPU-capped, not model-capped — recorded as NaN/skip at
+  the OOM'd lengths (handled gracefully; the model is not dropped). Read a capped
+  `niah_maxlen` as a *lower bound*; the A100 path lifts the ceiling.
 - **L13 — Negative RQ2 is a result, not a failure.** If the profile does not
   track behaviour, that bounds how much NIAH/RULER scores reveal about the
   mechanism — reported as such, with CIs.
+- **L14 — Haystack corpus.** PG-19's `datasets` loading script is unsupported on
+  recent `datasets`, so the inherited loader silently falls back to a small
+  repetitive list. Runs install a script-free WikiText-103 haystack
+  (`rhp.corpus_fix`); fallback and WikiText results must not be mixed (re-run for
+  consistency). R7 tests corpus sensitivity directly.
