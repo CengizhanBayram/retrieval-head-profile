@@ -32,9 +32,15 @@ from src.stats_utils import benjamini_hochberg
 logger = logging.getLogger(__name__)
 
 # Default profile predictors and behavioural targets (column names in the table).
+# NOTE: freq_width is intentionally NOT a predictor — it is collinear with
+# freq_com (same drop curve, identical Spearman on the shared non-NaN subset), so
+# including both double-counts one signal. freq_width stays in the table for
+# inspection but is excluded from correlations/regression.
 PROFILE_PREDICTORS = ["n_heads", "frac", "gini", "zero_fraction", "layer_com",
-                      "detector_jaccard", "freq_com", "freq_width",
+                      "detector_jaccard", "freq_com",
                       "frequency_effect", "knockout_drop"]
+NULL_FREQ_ABS = 0.05   # |frequency_effect| below this => no causal frequency
+                       # dependence, so the spectral freq_com is noise (set NaN).
 # M7 (separate experiment, results/utility/<model>.json) contributes two
 # weight-space predictors when present.
 UTILITY_PREDICTORS = ["utility_cohens_d", "utility_partial_spearman"]
@@ -67,6 +73,15 @@ def build_table(results: list[dict]) -> pd.DataFrame:
         row = {"model": r.get("model"), "family": r.get("family", "unknown")}
         for k in PROFILE_PREDICTORS:
             row[k] = scalars.get(k, np.nan)
+        row["freq_width"] = scalars.get("freq_width", np.nan)   # table only, not a predictor
+        # Null-frequency gate: a model whose causal frequency effect is ~0 has no
+        # real spectral structure, so its freq_com centre-of-mass is noise (e.g.
+        # Llama: dose effect 0, but a non-zero freq_com from a near-flat curve).
+        # Drop freq_com for such models so it cannot pollute the correlation.
+        fe = scalars.get("frequency_effect", np.nan)
+        if not (abs(fe) >= NULL_FREQ_ABS):   # NaN or below threshold
+            row["freq_com"] = np.nan
+            row["freq_width"] = np.nan
         # M7 utility predictors come from the separate utility/<model>.json,
         # merged onto the result under "utility" by the collector.
         util = r.get("utility", {}) or {}
@@ -273,7 +288,14 @@ def run_prediction_analysis(
               .sort_values("absr", ascending=False))
     top3 = [p for p in ranked.predictor.tolist() if p in predictors][:3]
     loo = {t: loo_regression(df, top3, t) for t in targets} if top3 else {}
+    # Family-demeaned correlations, now WITH BH correction across the predictor
+    # set (was previously raw p only — a reviewer would reject "significant" on
+    # uncorrected p).
     fam = [family_demeaned_correlation(df, p, primary) for p in predictors]
+    fam_bh = benjamini_hochberg([f.get("p_value", float("nan")) for f in fam])
+    for f, padj, rej in zip(fam, fam_bh["p_adjusted"], fam_bh["rejected"]):
+        f["p_adjusted_bh"] = padj
+        f["significant_bh"] = bool(rej)
 
     return {
         "n_models": len(df),

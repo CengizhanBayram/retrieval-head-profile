@@ -250,6 +250,42 @@ def quant_ablation(instruct: dict, awq: dict | None, gptq: dict | None) -> dict:
     }
 
 
+def compare_invariant(parent: dict, child: dict) -> dict:
+    """
+    Architecture-INVARIANT comparison for cross-architecture pairs (distillation
+    siblings, e.g. Gemma-2-9B vs Gemma-2-2B).
+
+    Head-set Jaccard is meaningless across different (n_layers, n_heads) — the
+    head index spaces don't align, so a near-zero Jaccard is an artifact, not a
+    finding. This compares only scalars that are defined regardless of
+    architecture: the causal frequency effect, the knockout drop, the utility
+    sign, and behaviour. Use this (not ``compare_identity``) for siblings.
+    """
+    def _fe(r):
+        return (r.get("profile", {}).get("freq_patch") or {}).get("frequency_effect", float("nan"))
+
+    def _ko(r):
+        return (r.get("profile", {}).get("knockout") or {}).get("knockout_drop", float("nan"))
+
+    def _ud(r):
+        return (r.get("utility", {}) or {}).get("cohens_d", float("nan"))
+
+    p_fe, c_fe = _fe(parent), _fe(child)
+    sign = None
+    if p_fe == p_fe and c_fe == c_fe:
+        sign = bool(np.sign(p_fe) == np.sign(c_fe))
+    return {
+        "note": "cross-architecture: head-set identity (Jaccard) is NOT comparable; "
+                "only architecture-invariant axes are reported.",
+        "identity_comparable": False,
+        "parent_frequency_effect": p_fe, "child_frequency_effect": c_fe,
+        "frequency_effect_sign_preserved": sign,
+        "parent_knockout_drop": _ko(parent), "child_knockout_drop": _ko(child),
+        "parent_utility_d": _ud(parent), "child_utility_d": _ud(child),
+        "delta_niah": behavior_bridge(parent, child)["delta_niah"],
+    }
+
+
 def localize_recall_change(ring: dict) -> dict:
     """
     RQ4 conditional read-out (E15): when the child's recall dropped, is it an

@@ -92,15 +92,40 @@ def main():
         logger.info("  LOO %s: R²=%.3f (predictors=%s)", tgt, loo.get("loo_r2", float('nan')),
                     loo.get("predictors"))
 
-    # E9 test-retest, if a second seed is available.
+    # E9 reliability, if a second seed is available.
     if args.retest_seed is not None:
+        from rhp.prediction import within_model_reliability
         rep2 = collect(results_dir, args.retest_seed)
+        rep2_by_model = {r["model"]: r for r in rep2}
+        # (a) Per-model head-set reliability R_self — the artifact the inheritance
+        # thresholds actually use. Computable per model (no n>=4 requirement), so
+        # it is the trustworthy R_self source (test_retest below needs >=4 paired
+        # models and is NaN until then).
+        rself = []
+        for r in results:
+            other = rep2_by_model.get(r["model"])
+            if other is not None:
+                rself.append(within_model_reliability(r, other))
+        if rself:
+            save_json({"seed_a": args.seed, "seed_b": args.retest_seed,
+                       "reliability": rself},
+                      out_dir / "reliability_e9.json")
+            import numpy as _np
+            cj = [x["copy_jaccard"] for x in rself if x["copy_jaccard"] == x["copy_jaccard"]]
+            logger.info("E9 R_self (copy-Jaccard) over %d models: median=%.3f  values=%s",
+                        len(rself), float(_np.median(cj)) if cj else float("nan"),
+                        {x["model"]: round(x["copy_jaccard"], 3) for x in rself})
+        # (b) Cross-panel per-metric test-retest (needs >=4 paired models).
         if rep2:
             tr = test_retest(results, rep2)
             save_json({"seed_a": args.seed, "seed_b": args.retest_seed,
                        "test_retest": tr.to_dict(orient="records")},
                       out_dir / "test_retest_e9.json")
-            logger.info("E9 test-retest reliability (ceiling for E8):\n%s", tr.to_string(index=False))
+            n_paired = len(rep2_by_model.keys() & {r["model"] for r in results})
+            if n_paired < 4:
+                logger.warning("test_retest is NaN: only %d paired models (need >=4). "
+                               "Use reliability_e9.json (R_self) instead until more "
+                               "2-seed models exist.", n_paired)
         else:
             logger.warning("No results at retest seed %d — skipping E9.", args.retest_seed)
 

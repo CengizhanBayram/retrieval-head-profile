@@ -65,7 +65,8 @@ def main():
     bootstrap(args.part1_repo)
     from rhp.panel import load_panel, lineage_ring_pairs, lineage_sibling, lineage_chain
     from rhp.inheritance import (
-        compare_ring, compare_identity, localize_recall_change, quant_ablation,
+        compare_ring, compare_identity, compare_invariant, localize_recall_change,
+        quant_ablation,
     )
 
     config = load_panel(args.config)
@@ -119,11 +120,21 @@ def main():
             base = load_model_result(results_dir, chain[0], args.seed)
             sib_res = load_model_result(results_dir, sib, args.seed)
             if base and sib_res:
-                out["sibling"] = {
-                    "base": chain[0], "sibling": sib,
-                    "identity": compare_identity(base, sib_res),
-                    "note": "Architectures differ; only aggregate identity is comparable.",
-                }
+                same_arch = (base.get("n_layers") == sib_res.get("n_layers")
+                             and base.get("n_heads") == sib_res.get("n_heads"))
+                if same_arch:
+                    out["sibling"] = {"base": chain[0], "sibling": sib,
+                                      "same_architecture": True,
+                                      "identity": compare_identity(base, sib_res)}
+                else:
+                    # Distillation sibling at a DIFFERENT size: head-set Jaccard is
+                    # not comparable across architectures (it would be a ~0
+                    # artifact). Report architecture-invariant axes instead.
+                    out["sibling"] = {"base": chain[0], "sibling": sib,
+                                      "same_architecture": False,
+                                      "invariant": compare_invariant(base, sib_res)}
+                    logger.info("[%s] sibling %s is cross-architecture -> invariant axes only.",
+                                lineage, sib)
 
         save_json(out, out_dir / f"{lineage}.json")
         logger.info("[%s] saved %d rings → %s", lineage, len(rings), out_dir / f"{lineage}.json")

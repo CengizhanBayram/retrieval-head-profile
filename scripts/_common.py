@@ -108,6 +108,7 @@ def run_profile_for_model(
     do_freq: bool = True,
     do_knockout: bool = True,
     top_k_heads: int | None = None,
+    freq_coverage: float | None = None,
 ) -> dict:
     """
     Full Block-A profile for one model. Loads the model, runs both detectors
@@ -139,6 +140,10 @@ def run_profile_for_model(
     n_samples = n_samples or niah.get("n_samples", 200)
     top_k_heads = top_k_heads or pcfg.get("top_k_heads", 30)
     positions = niah["needle_positions"]
+    # Coverage for the E2 frequency-signature sweep. Override (e.g. 1.0) to
+    # increase sensitivity for a model whose signature reads zero-drop despite a
+    # strong dose-patch effect (the qwen-3b case).
+    sig_coverage = freq_coverage if freq_coverage is not None else pcfg.get("coverage", 0.5)
 
     set_determinism(seed, strict=config.get("reproducibility", {}).get("strict_determinism", False))
     t0 = time.time()
@@ -186,7 +191,7 @@ def run_profile_for_model(
                 n_heads=n_heads,
                 n_windows=pcfg.get("freq_n_windows", 8),
                 window_divisor=pcfg.get("freq_window_divisor", 8),
-                coverage=pcfg.get("coverage", 0.5),
+                coverage=sig_coverage,
                 top_k=top_k_heads,
                 seed=seed,
             )

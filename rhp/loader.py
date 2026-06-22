@@ -38,8 +38,13 @@ def load_model_any(
     NF4 config for ``quant: bnb4``.
     """
     quant = model_cfg.get("quant")
+    # Optional non-default attention kernel. Gemma-2 defaults to eager attention
+    # (logit soft-capping), which materialises the full O(n^2) attention matrix
+    # and OOMs at long context even on large GPUs; "sdpa" avoids that. When set,
+    # we build the load here (the inherited src loader has no such argument).
+    attn = model_cfg.get("attn_implementation")
 
-    if quant == "bnb4":
+    if quant == "bnb4" or attn:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
@@ -53,17 +58,24 @@ def load_model_any(
         tokenizer = AutoTokenizer.from_pretrained(hf_id, revision=revision, trust_remote_code=True)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-        bnb = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-        )
-        logger.info("Loading %s (%s @ %s, 4-bit NF4) …", model_name, hf_id, revision)
-        model = AutoModelForCausalLM.from_pretrained(
-            hf_id, revision=revision, device_map="auto",
-            trust_remote_code=True, quantization_config=bnb,
-        )
+        kwargs: dict = {"revision": revision, "device_map": "auto", "trust_remote_code": True}
+        if quant == "bnb4":
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True)
+            tag = "4-bit NF4"
+        elif (load_in_8bit if load_in_8bit is not None else model_cfg.get("load_in_8bit", True)) \
+                and quant not in ("awq4", "gptq4"):
+            kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+            tag = "8-bit"
+        else:
+            kwargs["torch_dtype"] = torch.float16
+            tag = "fp16"
+        if attn:
+            kwargs["attn_implementation"] = attn
+            tag += f", attn={attn}"
+        logger.info("Loading %s (%s @ %s, %s) …", model_name, hf_id, revision, tag)
+        model = AutoModelForCausalLM.from_pretrained(hf_id, **kwargs)
         model.eval()
         if torch.cuda.is_available():
             logger.info("VRAM after load: %.1f GB", torch.cuda.memory_allocated() / 1e9)
