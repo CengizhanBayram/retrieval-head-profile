@@ -266,8 +266,16 @@ class CopyScoreDetector:
             def _make_hook(layer_idx: int):
                 def hook(module, input_, output):
                     if isinstance(output, tuple) and len(output) >= 2 and output[1] is not None:
-                        attn_w = output[1]  # (batch, heads, seq, seq)
-                        rows = attn_w[0, :, gen_idx, :].float().cpu()  # (heads, m, seq)
+                        attn_w = output[1]
+                        # (batch, heads, seq, seq) under eager; newer torch routes
+                        # some models (Gemma-2 w/ output_attentions) to flex_attention
+                        # which drops the batch dim -> (heads, seq, seq). Handle both.
+                        if attn_w.dim() == 4:
+                            rows = attn_w[0, :, gen_idx, :].float().cpu()   # (heads, m, seq)
+                        elif attn_w.dim() == 3:
+                            rows = attn_w[:, gen_idx, :].float().cpu()       # (heads, m, seq)
+                        else:
+                            return output
                         captured[layer_idx] = rows
                         attn_seen[0] = True
                         return (output[0], None) + output[2:]
