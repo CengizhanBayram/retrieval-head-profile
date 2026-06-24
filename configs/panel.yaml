@@ -210,6 +210,24 @@ models:
 # applies bitsandbytes NF4 load-time 4-bit to the instruct weights (no separate
 # repo needed — the proposal's §3.4 "→ 4-bit quantized" rings for Llama/Gemma).
 quant_models:
+  # qwen bnb4 — the 3rd 4-bit method (alongside llama/gemma bnb4). Works on the
+  # current torch/transformers stack; gives a clean 3-family within-method
+  # (bnb NF4) quant-inheritance result. In the active qwen chain below.
+  qwen25_7b_instruct_bnb4:
+    hf_id: "Qwen/Qwen2.5-7B-Instruct"
+    quant: "bnb4"
+    theta: 1000000
+    n_layers: 28
+    n_heads: 28
+    head_dim: 128
+    license: "apache-2.0"
+    family: "qwen"
+  # AWQ/GPTQ — DIFFERENT quant methods (activation-aware / Hessian-error-min) that
+  # may preserve retrieval/frequency channels differently than bnb4 (E14 cross-
+  # method comparison). NOT loadable on the pinned torch 2.11/cu128 + transformers
+  # 4.47 stack (autoawq needs tf>=4.51 + missing kernels; gptq needs optimum/
+  # auto-gptq which won't build). Produced separately by notebook 12 on a pinned
+  # compatible stack (tf 4.51 + gptqmodel/autoawq); kept here for that run.
   qwen25_7b_instruct_awq4:
     hf_id: "Qwen/Qwen2.5-7B-Instruct-AWQ"
     quant: "awq4"
@@ -254,8 +272,8 @@ quant_models:
 # ---------------------------------------------------------------------------
 lineages:
   qwen:
-    description: "Qwen2.5-7B: base → instruct → 4-bit (AWQ/GPTQ); 3B sibling for distillation contrast."
-    chain: ["qwen25_7b", "qwen25_7b_instruct", "qwen25_7b_instruct_awq4", "qwen25_7b_instruct_gptq4"]
+    description: "Qwen2.5-7B: base → instruct → 4-bit (bnb NF4); 3B sibling for distillation contrast. AWQ/GPTQ measured separately (notebook 12) as the E14 cross-method comparison."
+    chain: ["qwen25_7b", "qwen25_7b_instruct", "qwen25_7b_instruct_bnb4"]
     sibling: "qwen25_3b_instruct"
   llama:
     description: "Llama-3.1-8B: base → instruct → 4-bit (bnb NF4)."

@@ -33,14 +33,17 @@ NB_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(NB_DIR))
 
 from build_notebooks import md, code, notebook, SETUP_PIP, SETUP_CLONE, SETUP_PATHS
-from build_gap_notebook import GPU_DRIVE_TEST, SEED_FROM_MAIN, AWQ_GPTQ_INSTALL
+from build_gap_notebook import GPU_DRIVE_TEST, SEED_FROM_MAIN
 
 # ---------------------------------------------------------------------------
 # gemma2_9b_it_bnb4 ring (A100; bnb4 -> base stack, sdpa to avoid eager OOM)
 # ---------------------------------------------------------------------------
 GEMMA_BNB4 = code("""
-# gemma2_9b_it_bnb4 ring: profile + behaviour + utility. bitsandbytes 4-bit (no
-# special kernel), but 256-dim KV is fp16 -> needs A100. sdpa avoids eager OOM.
+# gemma2_9b_it_bnb4 ring: profile + behaviour + utility. bitsandbytes 4-bit.
+# IMPORTANT: force EAGER. The detector needs output_attentions=True, which under
+# sdpa makes gemma2 route to flex_attention -> 3D attn tensor -> detector hook
+# crashes (the IndexError seen in 09). Eager also matches gemma's softcapping and
+# the non-bnb4 gemma runs. 256-dim KV is fp16 -> use A100 80GB; 32k may OOM->NaN.
 import json
 from pathlib import Path
 from scripts._common import (run_profile_for_model, run_behavior_for_model,
@@ -51,7 +54,7 @@ RD = Path(RESULTS_DIR)
 prof = RD/'profile'/f'{key}_seed{SEED}.json'
 beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
 util = RD/'utility'/f'{key}_seed{SEED}.json'
-cfg = dict(model_cfg(config, key)); cfg['attn_implementation'] = 'sdpa'
+cfg = dict(model_cfg(config, key)); cfg['attn_implementation'] = 'eager'
 try:
     if not prof.exists():
         save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
@@ -73,12 +76,14 @@ except Exception as e:
 # phi35_mini: profile + utility + long-context behaviour (verbose on failure)
 # ---------------------------------------------------------------------------
 PHI_ALL = code("""
-# phi35_mini: profile (failed in 09 — print full traceback to see why) + utility
-# (needs the profile) + long-context behaviour (was NaN >=8k). Each step is
-# wrapped so one failure does not block the others.
-# IMPORTANT: Phi3's remote code does NOT support sdpa -> use EAGER (default). On
-# A100 eager reaches 8k/16k; 32k may OOM->NaN (handled), which still gives a real
-# niah_long. (Install flash_attn if you want phi at full 32k.)
+# phi35_mini: profile + utility + long-context behaviour. Each step wrapped so one
+# failure does not block the others.
+# IMPORTANT (two phi quirks found in 09):
+#  1. Phi3 uses a FUSED qkv_proj (no q_proj) -> the frequency-signature patching
+#     crashes. So run the profile with do_freq=False (phi gets head set + knockout
+#     + utility, but no frequency signature; phi is low-theta so this is minor).
+#  2. Phi3 remote code does NOT support sdpa -> EAGER (default). On A100 eager
+#     reaches 8k/16k; 32k may OOM->NaN (handled), still a real niah_long.
 import json, math
 from pathlib import Path
 from scripts._common import (run_profile_for_model, run_behavior_for_model,
@@ -94,8 +99,9 @@ cfg = dict(model_cfg(config, key))   # eager default; do NOT force sdpa for Phi3
 # (1) profile
 try:
     if not prof.exists():
-        save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
-        print('phi profile saved')
+        save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096,
+                                        do_freq=False), prof)   # Phi3 fused qkv -> skip freq
+        print('phi profile saved (no freq signature: Phi3 fused qkv_proj)')
     else:
         print('phi profile exists -> skip')
 except Exception as e:
@@ -130,55 +136,40 @@ except Exception as e:
 """)
 
 # ---------------------------------------------------------------------------
-# qwen AWQ/GPTQ rings — best-effort (verify kernels first; skip if not loadable)
+# qwen bnb4 ring — the 3rd within-method (bnb NF4) quant ring (works on this
+# stack; AWQ/GPTQ are pursued separately in notebook 12 for the E14 cross-method).
 # ---------------------------------------------------------------------------
-QWEN_RINGS = code("""
-# qwen AWQ + GPTQ rings (E14). Best-effort: only attempt a ring whose kernel is
-# importable (the --no-deps install above). If a kernel is missing/unloadable on
-# this stack, that arm is skipped (E14 lacks it; quant story still holds on
-# llama+gemma bnb4). Resume-safe + 23 h guard.
-import time, json, importlib.util
+QWEN_BNB4 = code("""
+# qwen25_7b_instruct_bnb4 ring: profile + behaviour + utility. bitsandbytes 4-bit,
+# same method as llama/gemma bnb4 -> a clean 3-family within-method quant-
+# inheritance result. qwen2 + output_attentions falls back gracefully (no crash),
+# so no forced attn needed; qwen is long-context native so behaviour reaches 32k.
+import json
 from pathlib import Path
 from scripts._common import (run_profile_for_model, run_behavior_for_model,
-                             run_utility_for_model, save_json, time_guard)
+                             run_utility_for_model, save_json)
 from rhp.panel import load_panel, model_cfg
-config = load_panel(CONFIG); SEED = 42; RD = Path(RESULTS_DIR)
-
-have_awq  = importlib.util.find_spec('awq') is not None
-have_gptq = importlib.util.find_spec('gptqmodel') is not None
-print('kernels -> autoawq:', have_awq, '| gptqmodel:', have_gptq)
-RINGS = [('qwen25_7b_instruct_awq4', have_awq), ('qwen25_7b_instruct_gptq4', have_gptq)]
-
-start = time.time(); times = []
-for key, have in RINGS:
-    if not have:
-        print(key, '-> kernel NOT importable, SKIP (E14 will lack this arm)'); continue
-    prof = RD/'profile'/f'{key}_seed{SEED}.json'
-    beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
-    util = RD/'utility'/f'{key}_seed{SEED}.json'
-    if prof.exists() and beh.exists() and util.exists():
-        print(key, 'done -> skip'); continue
-    ok, el, eh = time_guard(start, times, first_est_h=8.0)
-    if not ok:
-        print('STOP; re-run to resume.'); break
-    t0 = time.time(); cfg = dict(model_cfg(config, key))
-    try:
-        if not prof.exists():
-            save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
-            print(key, 'profile saved')
-        if not beh.exists():
-            r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
-            save_json(r, beh); print(key, 'behaviour saved')
-        if not util.exists():
-            d = json.load(open(prof, encoding='utf-8'))
-            save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
-                                            argmax_scores=d['argmax_scores'], seed=SEED), util)
-            print(key, 'utility saved')
-        times.append((time.time()-t0)/3600)
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        print(key, 'FAILED ->', e, '(kernel/load issue; E14 lacks this arm)')
-print('qwen rings pass complete.')
+config = load_panel(CONFIG); SEED = 42; key = 'qwen25_7b_instruct_bnb4'
+RD = Path(RESULTS_DIR)
+prof = RD/'profile'/f'{key}_seed{SEED}.json'
+beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
+util = RD/'utility'/f'{key}_seed{SEED}.json'
+cfg = dict(model_cfg(config, key))
+try:
+    if not prof.exists():
+        save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
+        print('qwen bnb4 profile saved')
+    if not beh.exists():
+        r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
+        save_json(r, beh); print('qwen bnb4 behaviour saved:', r['behavior'].get('niah_per_context'))
+    if not util.exists() and prof.exists():
+        d = json.load(open(prof, encoding='utf-8'))
+        save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
+                                        argmax_scores=d['argmax_scores'], seed=SEED), util)
+        print('qwen bnb4 utility saved')
+    print('qwen bnb4 ring done.')
+except Exception as e:
+    import traceback; traceback.print_exc(); print('qwen bnb4 FAILED ->', e)
 """)
 
 # ---------------------------------------------------------------------------
@@ -201,12 +192,16 @@ run([f'{P2}/scripts/run_inheritance.py', '--lineage', 'all', '--seed', '42'])
 RD = Path(RESULTS_DIR)
 def mk(sub, key): return 'Y' if (RD/sub/f'{key}_seed42.json').exists() else '.'
 print('\\n== COVERAGE (test folder) ==')
-for key in ['gemma2_9b_it_bnb4', 'phi35_mini', 'qwen25_7b_instruct_awq4', 'qwen25_7b_instruct_gptq4']:
+for key in ['gemma2_9b_it_bnb4', 'phi35_mini', 'qwen25_7b_instruct_bnb4']:
     print(f'  {key:28s} prof={mk(\"profile\",key)} beh={mk(\"behavior\",key)} util={mk(\"utility\",key)}')
-q = json.load(open(RD/'inheritance'/'qwen.json', encoding='utf-8')); e = q.get('E14_quant_ablation', {})
-print('E14 quant: awq4=%s gptq4=%s' % ('set' if e.get('awq4') else 'NULL', 'set' if e.get('gptq4') else 'NULL'))
-g = json.load(open(RD/'inheritance'/'gemma.json', encoding='utf-8'))
-print('gemma rings:', [(r.get('parent'), r.get('child')) for r in g.get('rings', [])])
+print('\\n== 4-bit (bnb NF4) quant rings across families ==')
+for lin in ['llama', 'gemma', 'qwen']:
+    j = json.load(open(RD/'inheritance'/f'{lin}.json', encoding='utf-8'))
+    for r in j.get('rings', []):
+        c = r.get('child', '')
+        if 'bnb4' in c:
+            print(f'  {lin:6s} {r.get(\"parent\")} -> {c}: copyJac=%.3f dFreqCom=%.3f'
+                  % (r['E10_identity']['copy']['jaccard'], r['E12_frequency']['delta_freq_com']))
 pf = RD/'behavior'/'phi35_mini_seed42.json'
 if pf.exists():
     b = json.load(open(pf, encoding='utf-8'))['behavior']
@@ -217,37 +212,42 @@ print('phi profile present:', mk('profile', 'phi35_mini'), '| phi utility presen
 
 def nb_11_remaining_gaps():
     cells = [md(
-        "# 11 · Remaining gaps (A100) — gemma 4-bit ring + phi (profile/util/long) "
-        "+ qwen AWQ/GPTQ (best-effort)\n"
-        "**GPU: A100 40 GB (80 GB ideal)** — required for `gemma2_9b_it_bnb4` "
-        "(256-dim KV is fp16 even at 4-bit). phi + qwen rings also fit; one A100 "
-        "does all.\n\n"
+        "# 11 · Remaining gaps (A100 80GB) — gemma 4-bit ring + phi + qwen 4-bit ring\n"
+        "**GPU: A100 80 GB** — `gemma2_9b_it_bnb4` (256-dim KV is fp16 even at 4-bit) "
+        "and phi at long context need the headroom; one A100 80GB does all three.\n\n"
+        "All three failures from the 09 run are fixed here (root causes were CODE, "
+        "not VRAM):\n"
+        "- **gemma bnb4** used sdpa → detector's `output_attentions` routed gemma2 to "
+        "flex_attention → 3D tensor crash. **Fixed: force EAGER.**\n"
+        "- **phi profile** crashed in the frequency step (Phi3 fused `qkv_proj`, no "
+        "`q_proj`). **Fixed: `do_freq=False`** (phi keeps head set + knockout + "
+        "utility; no freq signature — phi is low-θ anyway).\n"
+        "- **qwen AWQ/GPTQ** kernels are incompatible with the pinned torch 2.11 / "
+        "transformers 4.47 stack. **Replaced with qwen bnb4** (the 3rd within-method "
+        "ring); AWQ/GPTQ (E14 cross-method) move to notebook 12 on a pinned stack.\n\n"
         "Writes to the SEPARATE `rhprofile_results_other` test folder (seeded "
         "no-clobber from main; main untouched). `Run all` after tokens in Cell 2 "
         "(**HF token required — gemma is gated**) + the Drive popup. Resume-safe.\n\n"
-        "| Task | Why | GPU |\n|---|---|---|\n"
-        "| gemma2_9b_it_bnb4 ring | gemma still 1 ring (no 4-bit) | **A100** |\n"
-        "| phi profile + utility | both missing (phi profile failed in 09) | A100 |\n"
-        "| phi long-context behaviour | NaN >=8k; eager on A100 (Phi3 has no sdpa) | A100 |\n"
-        "| qwen AWQ/GPTQ rings | **E14 (null)** — best-effort, kernel-dependent | A100 |\n\n"
-        "If the qwen rings skip (kernels won't load on this stack), that is OK: the "
-        "quant-inheritance story stands on llama + gemma bnb4; E14 (AWQ-vs-GPTQ) is "
-        "the only kernel-dependent extra.")]
+        "| Task | Fix | GPU |\n|---|---|---|\n"
+        "| gemma2_9b_it_bnb4 ring | eager (detector) | **A100 80GB** |\n"
+        "| phi profile + utility | do_freq=False | A100 |\n"
+        "| phi long-context behaviour | eager (Phi3 has no sdpa) | A100 |\n"
+        "| qwen25_7b_instruct_bnb4 ring | 3rd bnb4 method | A100 |\n\n"
+        "Result: a clean **3-family (llama + gemma + qwen) bnb4 quant-inheritance** "
+        "result + phi as the 8th family. E14 (AWQ-vs-GPTQ cross-method) → notebook 12.")]
     cells += [
         md("### Setup — run cells 0–3 once. Edit `PART1`/`PART2` owners + paste tokens in Cell 2."),
         GPU_DRIVE_TEST, SETUP_PIP, SETUP_CLONE, SETUP_PATHS,
     ]
-    cells.append(md("## 1 — AWQ/GPTQ kernels (--no-deps; only the qwen rings need these)"))
-    cells.append(AWQ_GPTQ_INSTALL)
-    cells.append(md("## 2 — Seed the test folder from main (no-clobber; main read-only)"))
+    cells.append(md("## 1 — Seed the test folder from main (no-clobber; main read-only)"))
     cells.append(SEED_FROM_MAIN)
-    cells.append(md("## 3 — gemma2_9b_it_bnb4 ring (reliable; A100)"))
+    cells.append(md("## 2 — gemma2_9b_it_bnb4 ring (EAGER; A100 80GB)"))
     cells.append(GEMMA_BNB4)
-    cells.append(md("## 4 — phi35_mini: profile + utility + long-context behaviour (verbose on failure)"))
+    cells.append(md("## 3 — phi35_mini: profile (no-freq) + utility + long-context behaviour"))
     cells.append(PHI_ALL)
-    cells.append(md("## 5 — qwen AWQ/GPTQ rings (best-effort; skips if kernels won't load)"))
-    cells.append(QWEN_RINGS)
-    cells.append(md("## 6 — Re-run analysis + verify coverage / E14 / phi"))
+    cells.append(md("## 4 — qwen25_7b_instruct_bnb4 ring (3rd within-method quant ring)"))
+    cells.append(QWEN_BNB4)
+    cells.append(md("## 5 — Re-run analysis + verify coverage / bnb4 rings / phi"))
     cells.append(VERIFY)
     return notebook(cells, gpu=True)
 
