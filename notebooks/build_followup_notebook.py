@@ -38,29 +38,34 @@ from build_gap_notebook import GPU_DRIVE_TEST, SEED_FROM_MAIN  # same test-folde
 # 10a — phi long-context behaviour (overwrite the short-context phi result)
 # ---------------------------------------------------------------------------
 PHI_LONGCTX = code("""
-# phi35_mini long-context behaviour. The on-disk phi result only reached 4096
-# (niah_long=NaN); phi-3.5-mini is 128k-native, so re-run the FULL schedule
-# (4k/8k/16k/32k) so phi gets a real niah_long/maxlen and can enter RQ2. This
-# OVERWRITES the (short) phi behaviour in the TEST folder only.
-import json
+# phi35_mini long-context behaviour. The on-disk phi result is NaN at >=8k.
+# Phi3's remote code only supports EAGER attention (not sdpa), and eager's O(n^2)
+# VRAM OOMs at >=8k on L4 -> that is the NaN. So on L4 this still NaNs at >=8k
+# (expected); the REAL phi long-context is produced in notebook 11 on an A100.
+# This cell is kept harmless/idempotent. OVERWRITES phi in the TEST folder only.
+import json, math
 from pathlib import Path
 from scripts._common import run_behavior_for_model, save_json
 from rhp.panel import load_panel, model_cfg
 config = load_panel(CONFIG); SEED = 42; key = 'phi35_mini'
 out = Path(RESULTS_DIR)/'behavior'/f'{key}_seed{SEED}.json'
 
-def has_long(p):
+def has_real_long(p):
+    # True only if a context >=16384 has a REAL (non-NaN) recall — not just the
+    # key present. The old NaN result has the keys but NaN values, so this re-runs.
     if not p.exists():
         return False
     pc = json.load(open(p, encoding='utf-8')).get('behavior', {}).get('niah_per_context', {})
-    return any(int(c) >= 16384 for c in pc)
+    return any(int(c) >= 16384 and v == v for c, v in pc.items())   # v==v is False for NaN
 
-if has_long(out):
-    print('phi long-context behaviour already present -> skip')
+if has_real_long(out):
+    print('phi real long-context behaviour already present -> skip')
 else:
-    cfg = dict(model_cfg(config, key))     # full context_schedule comes from panel.yaml
+    cfg = dict(model_cfg(config, key))     # eager default; Phi3 remote code does NOT support sdpa
+    # NOTE: phi long-context needs A100 — eager attention's O(n^2) VRAM OOMs at
+    # >=8k on L4 (-> NaN, expected here). Notebook 11 (A100) is where phi fills.
     r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
-    save_json(r, out)                      # overwrite short-context phi in the test folder
+    save_json(r, out)                      # overwrite the NaN phi in the test folder
     b = r['behavior']
     print('phi per_ctx =', b.get('niah_per_context'))
     print('phi niah_long =', b.get('niah_long'), ' maxlen =', b.get('niah_maxlen'))
