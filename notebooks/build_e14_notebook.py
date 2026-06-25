@@ -40,15 +40,16 @@ from build_gap_notebook import GPU_DRIVE_TEST, SEED_FROM_MAIN
 # transformers + a consistent numpy LAST so they win the resolution.
 INSTALL_THEN_RESTART = code("""
 %%bash
-# STEP 1 of 2. Install the AWQ/GPTQ stack, then RESTART THE RUNTIME (next cell
-# tells you). gptqmodel = Triton kernels (work on torch 2.11). Kernels are
-# installed first; transformers 4.51.3 + a consistent numpy are pinned LAST so the
-# resolution ends on known-good versions. The restart clears the stale numpy that
-# causes the '_center' crash.
-echo '== kernels =='
-pip install -q gptqmodel 2>&1 | tail -1 || echo 'gptqmodel failed'
-pip install -q autoawq optimum 2>&1 | tail -1 || echo 'autoawq best-effort (needs torch 2.6 kernels)'
-echo '== pin transformers 4.51.3 + consistent numpy/scipy LAST =='
+# STEP 1 of 2. AWQ-ONLY install, then RESTART (next cell tells you).
+# WHY AWQ-only: a previous run proved AWQ LOADS and the detector WORKS (200 heads
+# scored) on tf 4.51.3 — it only broke at generation because *gptqmodel* import
+# monkeypatches transformers._prepare_cache_for_generation with a wrong-arity shim.
+# gptqmodel also needs tf>=4.52 (transformers.masking_utils) which CONFLICTS with
+# autoawq's tf<=4.51.3. So we install ONLY autoawq here -> no bad patch -> AWQ
+# generation works. (GPTQ is a separate run on tf>=4.52; deferred.)
+echo '== autoawq ONLY (no gptqmodel/optimum -> no generation monkeypatch) =='
+pip install -q autoawq 2>&1 | tail -1 || echo 'autoawq failed'
+echo '== pin transformers 4.51.3 (autoawq last-tested) + consistent numpy LAST =='
 pip install -q transformers==4.51.3 2>&1 | tail -1
 pip install -q "numpy<2.2" scipy scikit-learn 2>&1 | tail -1
 echo
@@ -66,13 +67,18 @@ RESTART_NOTE = md(
 
 # After restart: verify the fresh env imports cleanly + kernels present.
 VERIFY = code("""
-# Post-restart sanity: numpy/scipy/transformers import cleanly + kernels present.
+# Post-restart sanity: numpy/scipy/transformers import cleanly + awq present.
+# (gptqmodel must NOT be importable here — if it is, it has patched generation.)
 import importlib
-for m in ['numpy', 'scipy.stats', 'transformers', 'gptqmodel', 'awq', 'optimum']:
+for m in ['numpy', 'scipy.stats', 'transformers', 'awq']:
     try:
         importlib.import_module(m); print('OK  ', m)
     except Exception as e:
         print('MISS', m, '->', str(e)[:90])
+try:
+    importlib.import_module('gptqmodel'); print('WARNING gptqmodel present -> may break AWQ generation')
+except Exception:
+    print('OK   gptqmodel absent (good — no generation patch)')
 import transformers, numpy, torch
 print('transformers', transformers.__version__, '| numpy', numpy.__version__,
       '| torch', torch.__version__, '| cuda', torch.cuda.is_available())
@@ -100,10 +106,9 @@ finally:
     gc.collect(); torch.cuda.empty_cache()
 """)
 
-# Rings: GPTQ first (Triton, best chance on torch 2.11), AWQ best-effort.
+# AWQ ring only (it already loads + detects on tf 4.51.3; with gptqmodel absent the
+# generation step now works too). Resume-safe; verbose on failure.
 RINGS = code("""
-# GPTQ (gptqmodel/Triton — works on torch 2.11) first; AWQ best-effort (may skip
-# without torch-2.6 kernels). Resume-safe; verbose on failure.
 import time, json
 from pathlib import Path
 from scripts._common import (run_profile_for_model, run_behavior_for_model,
@@ -112,36 +117,29 @@ from rhp.panel import load_panel, model_cfg
 config = load_panel(CONFIG); SEED = 42; RD = Path(RESULTS_DIR)
 
 if not ok_src:
-    print('Smoke did not pass -> skipping rings.')
+    print('Smoke did not pass -> skipping AWQ.')
 else:
-    start = time.time(); times = []
-    for key in ['qwen25_7b_instruct_gptq4', 'qwen25_7b_instruct_awq4']:
-        prof = RD/'profile'/f'{key}_seed{SEED}.json'
-        beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
-        util = RD/'utility'/f'{key}_seed{SEED}.json'
-        if prof.exists() and beh.exists() and util.exists():
-            print(key, 'done -> skip'); continue
-        ok, el, eh = time_guard(start, times, first_est_h=8.0)
-        if not ok:
-            print('STOP; re-run to resume.'); break
-        t0 = time.time(); cfg = dict(model_cfg(config, key))
-        try:
-            if not prof.exists():
-                save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
-                print(key, 'profile saved')
-            if not beh.exists():
-                r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
-                save_json(r, beh); print(key, 'behaviour saved')
-            if not util.exists():
-                d = json.load(open(prof, encoding='utf-8'))
-                save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
-                                                argmax_scores=d['argmax_scores'], seed=SEED), util)
-                print(key, 'utility saved')
-            times.append((time.time()-t0)/3600)
-        except Exception as e:
-            import traceback; traceback.print_exc()
-            print(key, 'FAILED ->', e, '(GPTQ should load on Triton; AWQ may need torch 2.6)')
-    print('rings pass complete.')
+    key = 'qwen25_7b_instruct_awq4'
+    prof = RD/'profile'/f'{key}_seed{SEED}.json'
+    beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
+    util = RD/'utility'/f'{key}_seed{SEED}.json'
+    cfg = dict(model_cfg(config, key))
+    try:
+        if not prof.exists():
+            save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
+            print(key, 'profile saved')
+        if not beh.exists():
+            r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
+            save_json(r, beh); print(key, 'behaviour saved')
+        if not util.exists():
+            d = json.load(open(prof, encoding='utf-8'))
+            save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
+                                            argmax_scores=d['argmax_scores'], seed=SEED), util)
+            print(key, 'utility saved')
+        print('AWQ ring done.')
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print(key, 'FAILED ->', e)
 """)
 
 # E14 cross-method table — pure JSON read.
@@ -177,22 +175,23 @@ print('\\n2+ methods present -> a real E14 cross-method result '
 
 def nb_12_e14():
     cells = [md(
-        "# 12 · E14 cross-method quant — RESTART approach (GPTQ via Triton; AWQ best-effort)\n"
-        "**GPU: A100.** AWQ/GPTQ installs corrupt the base env (`numpy._center` + "
-        "transformers churn). The clean fix is the one you noticed: **install, then "
-        "RESTART the runtime** so the new numpy/transformers load fresh.\n\n"
-        "Kernel reality on torch 2.11:\n"
-        "- **GPTQ** via `gptqmodel` = **Triton** kernels (compiled at runtime) → "
-        "works on torch 2.11. **This is the realistic E14 arm.**\n"
-        "- **AWQ** via `autoawq` = prebuilt CUDA kernels that don't exist for torch "
-        "2.11 → best-effort (use the venv/torch-2.6 route if AWQ is required).\n\n"
-        "So this yields **bnb4 vs GPTQ** cross-method (a real result); AWQ may skip. "
-        "AWQ/GPTQ are different methods from bnb4 — bnb4 does not substitute.\n\n"
+        "# 12 · E14 cross-method quant — AWQ (RESTART approach)\n"
+        "**GPU: A100.** A prior run proved **AWQ loads and the detector works** on "
+        "transformers 4.51.3 (200 heads scored) — it only broke at *generation* "
+        "because **gptqmodel's import monkeypatches** transformers generation with a "
+        "wrong-arity shim. gptqmodel also needs tf≥4.52 (`masking_utils`), which "
+        "**conflicts** with autoawq's tf≤4.51.3. So AWQ and GPTQ can't share one "
+        "transformers — this notebook does **AWQ only** (no gptqmodel → no bad "
+        "patch → AWQ generation works). GPTQ is a separate tf≥4.52 run, deferred.\n\n"
+        "The `_center` numpy crash is fixed the way you noticed: **install, then "
+        "RESTART** so the fresh interpreter loads the new numpy cleanly.\n\n"
+        "Yields **bnb4 vs AWQ** cross-method E14 (a real result). AWQ is a different "
+        "method from bnb4 (activation-aware vs uniform NF4) — bnb4 doesn't substitute.\n\n"
         "**NOT a single Run-all — one manual restart in the middle:**\n"
-        "1. Run **Cell A** (install). 2. `Runtime → Restart session`. 3. Run every "
-        "cell **below** Cell A.\n\n"
+        "1. Run **Cell A** (install autoawq + tf 4.51.3). 2. `Runtime → Restart "
+        "session`. 3. Run every cell **below** Cell A.\n\n"
         "A src-compat smoke test runs after restart; if src breaks under tf 4.51, "
-        "STOP and keep the bnb4-only story (notebook 11). qwen2.5 is ungated.")]
+        "STOP and keep the 3-family bnb4 story (notebook 11). qwen2.5 is ungated.")]
     cells.append(md("## Cell A — install the stack (run this, THEN restart)"))
     cells.append(INSTALL_THEN_RESTART)
     cells.append(RESTART_NOTE)
@@ -202,10 +201,10 @@ def nb_12_e14():
     cells.append(VERIFY)
     cells.append(md("## SRC-COMPAT smoke test (stop early if src breaks under tf 4.51)"))
     cells.append(SMOKE)
-    cells.append(md("## Seed test folder (no-clobber) + run GPTQ/AWQ rings"))
+    cells.append(md("## Seed test folder (no-clobber) + run the AWQ ring"))
     cells.append(SEED_FROM_MAIN)
     cells.append(RINGS)
-    cells.append(md("## E14 cross-method table (instruct → bnb4 / gptq / awq)"))
+    cells.append(md("## E14 cross-method table (instruct → bnb4 / awq; gptq from nb 13)"))
     cells.append(E14_TABLE)
     return notebook(cells, gpu=True)
 
