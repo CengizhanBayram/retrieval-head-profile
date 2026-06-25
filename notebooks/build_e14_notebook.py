@@ -125,18 +125,19 @@ else:
     util = RD/'utility'/f'{key}_seed{SEED}.json'
     cfg = dict(model_cfg(config, key))
     try:
-        if not prof.exists():
-            save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
-            print(key, 'profile saved')
-        if not beh.exists():
-            r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
-            save_json(r, beh); print(key, 'behaviour saved')
-        if not util.exists():
-            d = json.load(open(prof, encoding='utf-8'))
-            save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
-                                            argmax_scores=d['argmax_scores'], seed=SEED), util)
-            print(key, 'utility saved')
-        print('AWQ ring done.')
+        # FULL profile now possible: the src fix (_dense_q_weight) recovers the
+        # quantized q_proj's effective weight via an identity forward, so the freq
+        # signature + norms work (no more qweight crash). OVERWRITE old/partial files.
+        save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
+        print(key, 'profile saved (full: identity + freq + knockout) [overwrite]')
+        r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
+        save_json(r, beh); print(key, 'behaviour saved [overwrite]')
+        d = json.load(open(prof, encoding='utf-8'))
+        save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
+                                        argmax_scores=d['argmax_scores'], seed=SEED), util)
+        print(key, 'utility saved [overwrite]')
+        print('AWQ ring done (full). If freq_com is degenerate, the AWQ kernel '
+              'rejected the dense-weight probe — identity is still valid for E14.')
     except Exception as e:
         import traceback; traceback.print_exc()
         print(key, 'FAILED ->', e)

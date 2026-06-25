@@ -104,20 +104,22 @@ else:
     prof = RD/'profile'/f'{key}_seed{SEED}.json'
     beh  = RD/'behavior'/f'{key}_seed{SEED}.json'
     util = RD/'utility'/f'{key}_seed{SEED}.json'
-    cfg = dict(model_cfg(config, key))
+    # FORCE EAGER: the prior GPTQ run detected 0 heads ("No attention weights
+    # captured") because the newer transformers default attention doesn't return
+    # weights with output_attentions. Eager returns 4D weights -> detector works.
+    cfg = dict(model_cfg(config, key)); cfg['attn_implementation'] = 'eager'
     try:
-        if not prof.exists():
-            save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
-            print(key, 'profile saved')
-        if not beh.exists():
-            r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
-            save_json(r, beh); print(key, 'behaviour saved')
-        if not util.exists():
-            d = json.load(open(prof, encoding='utf-8'))
-            save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
-                                            argmax_scores=d['argmax_scores'], seed=SEED), util)
-            print(key, 'utility saved')
-        print('GPTQ ring done.')
+        # OVERWRITE old/partial files (the previous run saved a 0-head profile).
+        save_json(run_profile_for_model(key, cfg, config, seed=SEED, context_length=4096), prof)
+        print(key, 'profile saved [overwrite]')
+        r = run_behavior_for_model(key, cfg, config, seed=SEED); r['family'] = cfg.get('family')
+        save_json(r, beh); print(key, 'behaviour saved [overwrite]')
+        d = json.load(open(prof, encoding='utf-8'))
+        save_json(run_utility_for_model(key, cfg, config, argmax_heads=d['argmax_heads'],
+                                        argmax_scores=d['argmax_scores'], seed=SEED), util)
+        print(key, 'utility saved [overwrite]')
+        print('GPTQ ring done. Check #heads > 0 (eager fixed detection) and freq '
+              '(via dense-weight extraction).')
     except Exception as e:
         import traceback; traceback.print_exc()
         print(key, 'FAILED ->', e)
