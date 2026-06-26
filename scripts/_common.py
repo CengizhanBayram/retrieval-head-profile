@@ -94,6 +94,74 @@ def _json_default(o):
 
 
 # ---------------------------------------------------------------------------
+# Quantized-q_proj-safe norms (lives here, in Part-2, because Part-1 may not be
+# redeployed). Monkeypatches DimensionUtilityAnalyzer.compute_query_projection_norms
+# so AWQ (WQLinear_GEMM) / GPTQ (Marlin) / bnb4 (Params4bit) rings — which expose no
+# usable dense .weight — recover the effective weight via an identity forward (the
+# layer dequantizes internally). Idempotent; called before any analyzer is built.
+# ---------------------------------------------------------------------------
+
+def _patch_quantized_qproj_norms() -> None:
+    import numpy as np
+    import torch
+    from src.dimension_utility import DimensionUtilityAnalyzer as _A
+
+    if getattr(_A, "_quant_patched", False):
+        return
+
+    def _dense(q):
+        w = getattr(q, "weight", None)
+        if (isinstance(w, torch.Tensor) and not getattr(w, "is_meta", False)
+                and w.dtype in (torch.float16, torch.bfloat16, torch.float32) and w.dim() == 2):
+            return w.detach().cpu().float()
+        try:
+            in_f = getattr(q, "in_features", None)
+            dev = next((p.device for p in q.parameters(recurse=True)), None)
+            if dev is None:
+                dev = next((b.device for b in q.buffers(recurse=True)), None)
+            if not in_f or dev is None:
+                raise RuntimeError("no in_features/device")
+            with torch.no_grad():
+                eye = torch.eye(in_f, device=dev, dtype=torch.float16)
+                y = q(eye).float()
+                bias = q(torch.zeros(1, in_f, device=dev, dtype=torch.float16)).float()
+                wt = (y - bias).t().contiguous()
+            return wt.detach().cpu().float()
+        except Exception as exc:
+            logger.warning("dense q_proj weight extraction failed (%s); using zeros.", exc)
+            n = int(getattr(q, "out_features", 0) or 0)
+            m = int(getattr(q, "in_features", 0) or 0)
+            return torch.zeros((n, m), dtype=torch.float32)
+
+    def _norms(self):
+        layers = self._get_layers()
+        out = []
+        for layer in layers:
+            try:
+                q = layer.self_attn.q_proj
+            except AttributeError:
+                out.append(np.zeros((self.n_heads, self.head_dim), dtype=np.float32))
+                continue
+            weight = _dense(q)
+            od = weight.shape[0]
+            nq = od // self.head_dim
+            if nq == 0:
+                out.append(np.zeros((self.n_heads, self.head_dim), dtype=np.float32))
+                continue
+            nm = weight.view(nq, self.head_dim, -1).abs().sum(dim=-1).numpy().astype(np.float32)
+            if nq < self.n_heads:
+                nm = np.repeat(nm, self.n_heads // nq, axis=0)
+            elif nq > self.n_heads:
+                nm = nm[: self.n_heads]
+            out.append(nm)
+        return np.stack(out, axis=0)
+
+    _A.compute_query_projection_norms = _norms
+    _A._quant_patched = True
+    logger.info("Patched compute_query_projection_norms for quantized q_proj rings.")
+
+
+# ---------------------------------------------------------------------------
 # Profile pipeline (Block A: E1–E5) for one model
 # ---------------------------------------------------------------------------
 
@@ -167,6 +235,7 @@ def run_profile_for_model(
         copy_heads = cdet.get_retrieval_heads(copy_scores)
 
         # Dimension utility → freq_order (for E2)
+        _patch_quantized_qproj_norms()  # AWQ/GPTQ/bnb4 q_proj have no dense .weight
         analyzer = DimensionUtilityAnalyzer(model, config)
         freq_order = analyzer.freq_order
         head_dim = analyzer.head_dim
@@ -457,6 +526,7 @@ def run_utility_for_model(
     model = tok = None
     try:
         model, tok = load_model(model_cfg, model_key)
+        _patch_quantized_qproj_norms()  # AWQ/GPTQ/bnb4 q_proj have no dense .weight
         analyzer = DimensionUtilityAnalyzer(model, config)
         norms = analyzer.compute_query_projection_norms()
         heads = [tuple(h) for h in argmax_heads]
