@@ -1,4 +1,4 @@
-# v2 integration plan — folding the RoPE-paper (A-series) depth into the Profile paper
+w# v2 integration plan — folding the RoPE-paper (A-series) depth into the Profile paper
 
 **Goal.** The current Part-2 paper answers *what the profile is* (RQ1), *whether
 it predicts behaviour* (RQ2), and *whether the circuit is inherited* (RQ3). It is

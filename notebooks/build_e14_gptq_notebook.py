@@ -31,6 +31,7 @@ sys.path.insert(0, str(NB_DIR))
 
 from build_notebooks import md, code, notebook, SETUP_CLONE, SETUP_PATHS
 from build_gap_notebook import GPU_DRIVE_TEST, SEED_FROM_MAIN
+from build_e14_notebook import PATCH_QUANT  # quantized q_proj norms runtime patch
 
 INSTALL_THEN_RESTART = code("""
 %%bash
@@ -175,6 +176,8 @@ def nb_13_gptq():
     cells += [GPU_DRIVE_TEST, SETUP_CLONE, SETUP_PATHS]
     cells.append(md("## Post-restart sanity (clean imports + gptqmodel + tf version)"))
     cells.append(VERIFY)
+    cells.append(md("## Runtime patch — quantized q_proj norms (no repo push needed)"))
+    cells.append(PATCH_QUANT)
     cells.append(md("## SRC-COMPAT smoke test (stop early if src breaks)"))
     cells.append(SMOKE)
     cells.append(md("## Seed test folder (no-clobber) + run the GPTQ ring"))

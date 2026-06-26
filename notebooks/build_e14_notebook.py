@@ -85,6 +85,58 @@ print('transformers', transformers.__version__, '| numpy', numpy.__version__,
 """)
 
 # SRC-COMPAT smoke test under transformers 4.51 (stop early if src breaks).
+PATCH_QUANT = code("""
+# RUNTIME PATCH (no repo push needed): make compute_query_projection_norms handle
+# quantized q_proj (AWQ/GPTQ/bnb4). Recovers the effective dense weight via an
+# identity forward (the layer dequantizes internally), instead of reading the
+# nonexistent .weight on WQLinear_GEMM/Marlin/Params4bit. Travels with this
+# notebook, so it works even if the src fix isn't on GitHub yet.
+import numpy as np, torch
+import src.dimension_utility as du
+
+def _dense_q_weight(q_proj):
+    w = getattr(q_proj, 'weight', None)
+    if (isinstance(w, torch.Tensor) and not getattr(w, 'is_meta', False)
+            and w.dtype in (torch.float16, torch.bfloat16, torch.float32) and w.dim() == 2):
+        return w.detach().cpu().float()
+    try:
+        in_f = getattr(q_proj, 'in_features', None)
+        dev = next((p.device for p in q_proj.parameters(recurse=True)), None)
+        if dev is None:
+            dev = next((b.device for b in q_proj.buffers(recurse=True)), None)
+        if not in_f or dev is None:
+            raise RuntimeError('no in_features/device')
+        with torch.no_grad():
+            eye = torch.eye(in_f, device=dev, dtype=torch.float16)
+            y = q_proj(eye).float()
+            bias = q_proj(torch.zeros(1, in_f, device=dev, dtype=torch.float16)).float()
+            wt = (y - bias).t().contiguous()
+        return wt.detach().cpu().float()
+    except Exception as e:
+        print('dense-weight extraction failed:', e, '-> zeros')
+        n = int(getattr(q_proj, 'out_features', 0) or 0); m = int(getattr(q_proj, 'in_features', 0) or 0)
+        return torch.zeros((n, m), dtype=torch.float32)
+
+def _patched_norms(self):
+    layers = self._get_layers(); out = []
+    for li, layer in enumerate(layers):
+        try:
+            q_proj = layer.self_attn.q_proj
+        except AttributeError:
+            out.append(np.zeros((self.n_heads, self.head_dim), dtype=np.float32)); continue
+        weight = _dense_q_weight(q_proj); od = weight.shape[0]; nq = od // self.head_dim
+        if nq == 0:
+            out.append(np.zeros((self.n_heads, self.head_dim), dtype=np.float32)); continue
+        norms = weight.view(nq, self.head_dim, -1).abs().sum(dim=-1).numpy().astype(np.float32)
+        if nq < self.n_heads: norms = np.repeat(norms, self.n_heads // nq, axis=0)
+        elif nq > self.n_heads: norms = norms[:self.n_heads]
+        out.append(norms)
+    return np.stack(out, axis=0)
+
+du.DimensionUtilityAnalyzer.compute_query_projection_norms = _patched_norms
+print('PATCHED compute_query_projection_norms for quantized q_proj (no push needed).')
+""")
+
 SMOKE = code("""
 # SRC-COMPAT smoke test under transformers 4.51. If this crashes, src/ is not
 # compatible with 4.51 -> STOP and keep the bnb4-only quant story (notebook 11).
@@ -200,6 +252,8 @@ def nb_12_e14():
     cells += [GPU_DRIVE_TEST, SETUP_CLONE, SETUP_PATHS]
     cells.append(md("## Post-restart sanity (clean imports + kernels)"))
     cells.append(VERIFY)
+    cells.append(md("## Runtime patch — quantized q_proj norms (no repo push needed)"))
+    cells.append(PATCH_QUANT)
     cells.append(md("## SRC-COMPAT smoke test (stop early if src breaks under tf 4.51)"))
     cells.append(SMOKE)
     cells.append(md("## Seed test folder (no-clobber) + run the AWQ ring"))
