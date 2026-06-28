@@ -217,18 +217,26 @@ def compare_ring(parent: dict, child: dict, *, lineage: str = "") -> dict:
     }
 
 
-def quant_ablation(instruct: dict, awq: dict | None, gptq: dict | None) -> dict:
+def quant_ablation(
+    instruct: dict,
+    bnb4: dict | None = None,
+    awq: dict | None = None,
+    gptq: dict | None = None,
+) -> dict:
     """
-    E14 — quantization ablation on one instruct model (three-level template).
+    E14 — quantization CROSS-METHOD ablation on one instruct model.
 
-    Distinguishes a genuine profile shift under 4-bit from a measurement
-    artifact by applying, for each of AWQ and GPTQ vs the fp16/8-bit instruct
-    reference, the Part-1 three-level comparison:
+    For each 4-bit METHOD (bnb NF4 / AWQ / GPTQ) vs the SAME fp16 instruct
+    reference, applies the Part-1 three-level comparison through the shared
+    ``compare_identity`` / ``compare_frequency`` code path (so every number is
+    pipeline-traceable, not hand-computed):
         level 1  identity   head-set Jaccard (copy detector)
         level 2  scores      per-head score Spearman (same architecture)
         level 3  finding     does the frequency_effect keep its sign?
     A change that is artifactual typically perturbs level 1 while leaving level 3
-    intact; a real degradation moves all three.
+    intact; a real degradation moves all three. Comparing the three methods
+    against the one reference is the cross-method E14 result (do different quant
+    methods preserve the retrieval circuit differently?).
     """
     def _one(ref: dict, q: dict | None) -> dict | None:
         if q is None:
@@ -245,6 +253,7 @@ def quant_ablation(instruct: dict, awq: dict | None, gptq: dict | None) -> dict:
 
     return {
         "reference": instruct.get("model"),
+        "bnb4": _one(instruct, bnb4),
         "awq4": _one(instruct, awq),
         "gptq4": _one(instruct, gptq),
     }

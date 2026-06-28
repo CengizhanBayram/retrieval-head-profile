@@ -95,23 +95,27 @@ def main():
         out = {"lineage": lineage, "description": config["lineages"][lineage].get("description"),
                "rings": rings}
 
-        # E14 — quantization ablation: the instruct reference vs its AWQ/GPTQ
-        # 4-bit rings (three-level template). Only fires when the chain carries
-        # quantized rings (e.g. the Qwen lineage).
-        quant_keys = set(config.get("quant_models", {}).keys())
+        # E14 — CROSS-METHOD quant ablation: the fp16 instruct reference vs EACH of
+        # its 4-bit methods (bnb4 / AWQ / GPTQ), via the shared compare_identity
+        # path (pipeline-traceable). Finds the methods by FAMILY in quant_models
+        # (not the chain), so awq/gptq are compared even when only bnb4 is in the
+        # chain. Reference = the last non-quant model in the chain (the instruct).
+        quant_pool = config.get("quant_models", {})
         chain = lineage_chain(config, lineage)
-        rings_quant = [k for k in chain if k in quant_keys]
-        if rings_quant:
-            first_q = chain.index(rings_quant[0])
-            ref_key = chain[first_q - 1] if first_q > 0 else chain[0]
+        non_quant = [k for k in chain if k not in quant_pool]
+        ref_key = non_quant[-1] if non_quant else chain[0]
+        fam = config.get("models", {}).get(ref_key, {}).get("family")
+        fam_quants = [k for k, v in quant_pool.items() if v.get("family") == fam]
+        if fam_quants:
+            def _find(tag):
+                return next((load_model_result(results_dir, k, args.seed)
+                             for k in fam_quants if tag in k), None)
             ref = load_model_result(results_dir, ref_key, args.seed)
-            awq = next((load_model_result(results_dir, k, args.seed)
-                        for k in rings_quant if "awq" in k), None)
-            gptq = next((load_model_result(results_dir, k, args.seed)
-                         for k in rings_quant if "gptq" in k), None)
-            if ref is not None:
-                out["E14_quant_ablation"] = quant_ablation(ref, awq, gptq)
-                logger.info("[%s] E14 quant ablation vs %s done.", lineage, ref_key)
+            bnb4, awq, gptq = _find("bnb4"), _find("awq"), _find("gptq")
+            if ref is not None and (bnb4 or awq or gptq):
+                out["E14_quant_ablation"] = quant_ablation(ref, bnb4=bnb4, awq=awq, gptq=gptq)
+                logger.info("[%s] E14 cross-method ablation vs %s: bnb4=%s awq=%s gptq=%s",
+                            lineage, ref_key, bnb4 is not None, awq is not None, gptq is not None)
 
         # Distillation sibling (E10 identity only — architectures differ).
         sib = lineage_sibling(config, lineage)
