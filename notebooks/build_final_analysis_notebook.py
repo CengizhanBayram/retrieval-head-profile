@@ -80,24 +80,19 @@ for lin in ['llama', 'gemma', 'qwen', 'mistral']:
             print(f\"  {lin:6s} {r.get('parent')} -> {c}: copyJac=%.3f dFreqCom=%.3f\"
                   % (r['E10_identity']['copy']['jaccard'], r['E12_frequency']['delta_freq_com']))
 
-print('\\n##### E14 — CROSS-METHOD (qwen instruct -> 4-bit, by method) #####')
-def prof(k):
-    p = RD/'profile'/f'{k}_seed42.json'; return L(str(p)) if p.exists() else None
-def jac(a, b):
-    sa = {tuple(x) for x in a}; sb = {tuple(x) for x in b}
-    return len(sa & sb)/len(sa | sb) if (sa or sb) else float('nan')
-ref = prof('qwen25_7b_instruct')
-if ref:
-    rh = ref.get('copy_heads', []); ra = ref.get('argmax_heads', [])
-    print(f\"  {'method':7s} {'copyJac':>8s} {'argmaxJac':>10s} {'#heads':>7}\")
-    for mth, k in [('bnb4','qwen25_7b_instruct_bnb4'),
-                   ('awq4','qwen25_7b_instruct_awq4'),
-                   ('gptq4','qwen25_7b_instruct_gptq4')]:
-        c = prof(k)
-        if not c: print(f'  {mth:7s} (missing)'); continue
-        print(f'  {mth:7s} {jac(rh, c.get(\"copy_heads\", [])):8.3f} '
-              f'{jac(ra, c.get(\"argmax_heads\", [])):10.3f} {len(c.get(\"argmax_heads\", [])):7d}')
-    print('  (all > 0.8*R_self -> inherited; AWQ most faithful)')
+print('\\n##### E14 — CROSS-METHOD (PIPELINE, from inheritance/qwen.json) #####')
+# Read the pipeline output (run_inheritance -> quant_ablation -> compare_identity).
+# NOT hand-computed: every number is traceable through the same code path.
+e = L(str(RD/'inheritance'/'qwen.json')).get('E14_quant_ablation', {})
+print('  reference:', e.get('reference'))
+print(f\"  {'method':7s} {'identJac':>9s} {'scoreSpear':>11s} {'signPres':>9s}\")
+for mth in ['bnb4', 'awq4', 'gptq4']:
+    v = e.get(mth)
+    if not v:
+        print(f'  {mth:7s} (missing)'); continue
+    print(f\"  {mth:7s} {v['identity_jaccard']:9.3f} {v['per_head_score_spearman']:11.3f} \"
+          f\"{str(v['finding_sign_preserved']):>9s}\")
+print('  (all 3 methods preserve the circuit; AWQ most faithful — POST-HOC, n=1 lineage/1 seed)')
 
 print('\\n##### RQ2 — prediction (BH-corrected single correlations) #####')
 an = L(str(RD/'analysis'/'prediction_e8.json'))
