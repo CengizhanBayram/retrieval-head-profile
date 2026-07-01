@@ -1,0 +1,224 @@
+{
+  "lineage": "mistral",
+  "description": "Mistral-7B v0.3: base \u2192 instruct.",
+  "rings": [
+    {
+      "lineage": "mistral",
+      "parent": "mistral7b_v03",
+      "child": "mistral7b_v03_instruct",
+      "same_architecture": true,
+      "E10_identity": {
+        "argmax": {
+          "jaccard": 0.7184466019417476,
+          "intersection": 74,
+          "union": 103,
+          "n_parent": 95,
+          "n_child": 82,
+          "lost": [
+            [
+              14,
+              8
+            ],
+            [
+              15,
+              28
+            ],
+            [
+              16,
+              30
+            ],
+            [
+              18,
+              13
+            ],
+            [
+              18,
+              29
+            ],
+            [
+              18,
+              31
+            ],
+            [
+              20,
+              10
+            ],
+            [
+              20,
+              11
+            ],
+            [
+              20,
+              31
+            ],
+            [
+              21,
+              1
+            ],
+            [
+              22,
+              1
+            ],
+            [
+              22,
+              30
+            ],
+            [
+              24,
+              5
+            ],
+            [
+              24,
+              6
+            ],
+            [
+              28,
+              25
+            ],
+            [
+              29,
+              2
+            ],
+            [
+              29,
+              19
+            ],
+            [
+              29,
+              22
+            ],
+            [
+              30,
+              2
+            ],
+            [
+              30,
+              26
+            ],
+            [
+              30,
+              29
+            ]
+          ],
+          "gained": [
+            [
+              10,
+              11
+            ],
+            [
+              11,
+              22
+            ],
+            [
+              13,
+              7
+            ],
+            [
+              14,
+              29
+            ],
+            [
+              16,
+              24
+            ],
+            [
+              18,
+              0
+            ],
+            [
+              18,
+              2
+            ],
+            [
+              29,
+              12
+            ]
+          ],
+          "per_head_score_spearman": 0.9201254890432914
+        },
+        "copy": {
+          "jaccard": 0.8484848484848485,
+          "intersection": 28,
+          "union": 33,
+          "n_parent": 32,
+          "n_child": 29,
+          "lost": [
+            [
+              12,
+              4
+            ],
+            [
+              16,
+              12
+            ],
+            [
+              16,
+              22
+            ],
+            [
+              20,
+              17
+            ]
+          ],
+          "gained": [
+            [
+              14,
+              24
+            ]
+          ],
+          "per_head_score_spearman": 0.8982930469339624
+        }
+      },
+      "E11_function": {
+        "parent_knockout_drop": 0.012820512820512775,
+        "child_knockout_drop": 0.1282051282051282,
+        "delta_knockout_drop": 0.11538461538461542,
+        "parent_dissociation": -0.002564102564102555,
+        "child_dissociation": 0.11538461538461542
+      },
+      "E12_frequency": {
+        "parent_freq_com": 0.0625,
+        "child_freq_com": 0.0625,
+        "delta_freq_com": 0.0,
+        "parent_freq_width": 0.0,
+        "child_freq_width": 0.0,
+        "parent_peak_drop": 0.008333333333333304,
+        "child_peak_drop": 0.008333333333333304,
+        "com_direction_preserved": true,
+        "parent_frequency_effect": -0.008333333333333304,
+        "child_frequency_effect": -0.008333333333333304,
+        "delta_frequency_effect": 0.0,
+        "frequency_effect_sign_preserved": true,
+        "parent_specificity_verdict": "general-long-context-degradation",
+        "child_specificity_verdict": "general-long-context-degradation"
+      },
+      "M7_utility": {
+        "parent_cohens_d": -0.009975587043803984,
+        "child_cohens_d": 0.06546532087296457,
+        "delta_cohens_d": 0.07544090791676855,
+        "sign_preserved": false,
+        "parent_verdict": "inconclusive",
+        "child_verdict": "inconclusive"
+      },
+      "E13_bridge": {
+        "delta_niah": 0.0,
+        "delta_ruler": 0.10972222222222228,
+        "delta_profile": {
+          "n_heads": -13,
+          "frac": -0.0126953125,
+          "gini": 0.0041589976040136145,
+          "layer_com": -0.018822752593971925,
+          "freq_com": 0.0,
+          "knockout_drop": 0.11538461538461542
+        }
+      },
+      "E15_localization": {
+        "recall_dropped": false,
+        "delta_niah": 0.0,
+        "head_jaccard": 0.8484848484848485,
+        "per_head_score_spearman": 0.8982930469339624,
+        "verdict": "no-recall-drop"
+      }
+    }
+  ]
+}

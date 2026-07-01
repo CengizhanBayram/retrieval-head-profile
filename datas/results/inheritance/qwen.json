@@ -1,0 +1,343 @@
+{
+  "lineage": "qwen",
+  "description": "Qwen2.5-7B: base \u2192 instruct \u2192 4-bit (bnb NF4); 3B sibling for distillation contrast. AWQ/GPTQ measured separately (notebook 12) as the E14 cross-method comparison.",
+  "rings": [
+    {
+      "lineage": "qwen",
+      "parent": "qwen25_7b",
+      "child": "qwen25_7b_instruct",
+      "same_architecture": true,
+      "E10_identity": {
+        "argmax": {
+          "jaccard": 0.7258064516129032,
+          "intersection": 45,
+          "union": 62,
+          "n_parent": 57,
+          "n_child": 50,
+          "lost": [
+            [
+              14,
+              8
+            ],
+            [
+              14,
+              11
+            ],
+            [
+              17,
+              8
+            ],
+            [
+              18,
+              10
+            ],
+            [
+              23,
+              8
+            ],
+            [
+              23,
+              12
+            ],
+            [
+              24,
+              25
+            ],
+            [
+              26,
+              2
+            ],
+            [
+              26,
+              16
+            ],
+            [
+              27,
+              16
+            ],
+            [
+              27,
+              17
+            ],
+            [
+              27,
+              18
+            ]
+          ],
+          "gained": [
+            [
+              17,
+              24
+            ],
+            [
+              20,
+              19
+            ],
+            [
+              20,
+              27
+            ],
+            [
+              21,
+              0
+            ],
+            [
+              24,
+              24
+            ]
+          ],
+          "per_head_score_spearman": 0.8614587705792154
+        },
+        "copy": {
+          "jaccard": 0.8888888888888888,
+          "intersection": 32,
+          "union": 36,
+          "n_parent": 35,
+          "n_child": 33,
+          "lost": [
+            [
+              21,
+              14
+            ],
+            [
+              22,
+              24
+            ],
+            [
+              24,
+              26
+            ]
+          ],
+          "gained": [
+            [
+              16,
+              20
+            ]
+          ],
+          "per_head_score_spearman": 0.8976308799698908
+        }
+      },
+      "E11_function": {
+        "parent_knockout_drop": 0.41025641025641024,
+        "child_knockout_drop": 0.7564102564102564,
+        "delta_knockout_drop": 0.34615384615384615,
+        "parent_dissociation": 0.20512820512820518,
+        "child_dissociation": 0.5717948717948719
+      },
+      "E12_frequency": {
+        "parent_freq_com": 0.0625,
+        "child_freq_com": 0.11718749999999996,
+        "delta_freq_com": 0.05468749999999996,
+        "parent_freq_width": 0.0,
+        "child_freq_width": 0.20043288114416252,
+        "parent_peak_drop": 0.5,
+        "child_peak_drop": 0.6083333333333334,
+        "com_direction_preserved": true,
+        "parent_frequency_effect": -0.6916666666666667,
+        "child_frequency_effect": -0.9249999999999999,
+        "delta_frequency_effect": -0.23333333333333328,
+        "frequency_effect_sign_preserved": true,
+        "parent_specificity_verdict": "retrieval-specific",
+        "child_specificity_verdict": "retrieval-specific"
+      },
+      "M7_utility": {
+        "parent_cohens_d": -0.5023561742173349,
+        "child_cohens_d": -0.47120920640347735,
+        "delta_cohens_d": 0.031146967813857562,
+        "sign_preserved": true,
+        "parent_verdict": "H2 (retrieval heads lower-utility \u2014 degradation-consistent)",
+        "child_verdict": "H2 (retrieval heads lower-utility \u2014 degradation-consistent)"
+      },
+      "E13_bridge": {
+        "delta_niah": 0.0,
+        "delta_ruler": 0.03888888888888886,
+        "delta_profile": {
+          "n_heads": -7,
+          "frac": -0.008928571428571425,
+          "gini": 0.0050819852794437015,
+          "layer_com": -0.005580331204089406,
+          "freq_com": 0.05468749999999996,
+          "knockout_drop": 0.34615384615384615
+        }
+      },
+      "E15_localization": {
+        "recall_dropped": false,
+        "delta_niah": 0.0,
+        "head_jaccard": 0.8888888888888888,
+        "per_head_score_spearman": 0.8976308799698908,
+        "verdict": "no-recall-drop"
+      }
+    },
+    {
+      "lineage": "qwen",
+      "parent": "qwen25_7b_instruct",
+      "child": "qwen25_7b_instruct_bnb4",
+      "same_architecture": true,
+      "E10_identity": {
+        "argmax": {
+          "jaccard": 0.8867924528301887,
+          "intersection": 47,
+          "union": 53,
+          "n_parent": 50,
+          "n_child": 50,
+          "lost": [
+            [
+              18,
+              15
+            ],
+            [
+              18,
+              16
+            ],
+            [
+              22,
+              17
+            ]
+          ],
+          "gained": [
+            [
+              18,
+              10
+            ],
+            [
+              23,
+              12
+            ],
+            [
+              24,
+              25
+            ]
+          ],
+          "per_head_score_spearman": 0.8836223517643628
+        },
+        "copy": {
+          "jaccard": 0.8378378378378378,
+          "intersection": 31,
+          "union": 37,
+          "n_parent": 33,
+          "n_child": 35,
+          "lost": [
+            [
+              16,
+              1
+            ],
+            [
+              21,
+              25
+            ]
+          ],
+          "gained": [
+            [
+              18,
+              16
+            ],
+            [
+              19,
+              18
+            ],
+            [
+              22,
+              24
+            ],
+            [
+              24,
+              26
+            ]
+          ],
+          "per_head_score_spearman": 0.9395630953953316
+        }
+      },
+      "E11_function": {
+        "parent_knockout_drop": 0.7564102564102564,
+        "child_knockout_drop": 0.8076923076923077,
+        "delta_knockout_drop": 0.05128205128205132,
+        "parent_dissociation": 0.5717948717948719,
+        "child_dissociation": 0.594871794871795
+      },
+      "E12_frequency": {
+        "parent_freq_com": 0.11718749999999996,
+        "child_freq_com": 0.08522727272727271,
+        "delta_freq_com": -0.03196022727272725,
+        "parent_freq_width": 0.20043288114416252,
+        "child_freq_width": 0.08288446604004748,
+        "parent_peak_drop": 0.6083333333333334,
+        "child_peak_drop": 0.8083333333333333,
+        "com_direction_preserved": true,
+        "parent_frequency_effect": -0.9249999999999999,
+        "child_frequency_effect": -0.9,
+        "delta_frequency_effect": 0.02499999999999991,
+        "frequency_effect_sign_preserved": true,
+        "parent_specificity_verdict": "retrieval-specific",
+        "child_specificity_verdict": "retrieval-specific"
+      },
+      "M7_utility": {
+        "parent_cohens_d": -0.47120920640347735,
+        "child_cohens_d": -0.018334983717380356,
+        "delta_cohens_d": 0.452874222686097,
+        "sign_preserved": true,
+        "parent_verdict": "H2 (retrieval heads lower-utility \u2014 degradation-consistent)",
+        "child_verdict": "inconclusive"
+      },
+      "E13_bridge": {
+        "delta_niah": 0.0,
+        "delta_ruler": -0.02777777777777779,
+        "delta_profile": {
+          "n_heads": 0,
+          "frac": 0.0,
+          "gini": 0.0019761264622486507,
+          "layer_com": 0.0007679767076644861,
+          "freq_com": -0.03196022727272725,
+          "knockout_drop": 0.05128205128205132
+        }
+      },
+      "E15_localization": {
+        "recall_dropped": false,
+        "delta_niah": 0.0,
+        "head_jaccard": 0.8378378378378378,
+        "per_head_score_spearman": 0.9395630953953316,
+        "verdict": "no-recall-drop"
+      }
+    }
+  ],
+  "E14_quant_ablation": {
+    "reference": "qwen25_7b_instruct",
+    "bnb4": {
+      "identity_jaccard": 0.8378378378378378,
+      "per_head_score_spearman": 0.9395630953953316,
+      "ref_frequency_effect": -0.9249999999999999,
+      "quant_frequency_effect": -0.9,
+      "finding_sign_preserved": true
+    },
+    "awq4": {
+      "identity_jaccard": 0.9705882352941176,
+      "per_head_score_spearman": 0.9331922160203828,
+      "ref_frequency_effect": -0.9249999999999999,
+      "quant_frequency_effect": -0.8416666666666667,
+      "finding_sign_preserved": true
+    },
+    "gptq4": {
+      "identity_jaccard": 0.8571428571428571,
+      "per_head_score_spearman": 0.9339486323238462,
+      "ref_frequency_effect": -0.9249999999999999,
+      "quant_frequency_effect": -0.6583333333333333,
+      "finding_sign_preserved": true
+    }
+  },
+  "sibling": {
+    "base": "qwen25_7b",
+    "sibling": "qwen25_3b_instruct",
+    "same_architecture": false,
+    "invariant": {
+      "note": "cross-architecture: head-set identity (Jaccard) is NOT comparable; only architecture-invariant axes are reported.",
+      "identity_comparable": false,
+      "parent_frequency_effect": -0.6916666666666667,
+      "child_frequency_effect": -0.9916666666666667,
+      "frequency_effect_sign_preserved": true,
+      "parent_knockout_drop": 0.41025641025641024,
+      "child_knockout_drop": 0.9487179487179487,
+      "parent_utility_d": -0.5023561742173349,
+      "child_utility_d": -1.0927258596452345,
+      "delta_niah": 0.0
+    }
+  }
+}

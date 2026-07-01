@@ -1,0 +1,346 @@
+{
+  "lineage": "llama",
+  "description": "Llama-3.1-8B: base \u2192 instruct \u2192 4-bit (bnb NF4).",
+  "rings": [
+    {
+      "lineage": "llama",
+      "parent": "llama31_8b",
+      "child": "llama31_8b_instruct",
+      "same_architecture": true,
+      "E10_identity": {
+        "argmax": {
+          "jaccard": 0.6153846153846154,
+          "intersection": 32,
+          "union": 52,
+          "n_parent": 45,
+          "n_child": 39,
+          "lost": [
+            [
+              13,
+              1
+            ],
+            [
+              13,
+              4
+            ],
+            [
+              13,
+              10
+            ],
+            [
+              14,
+              29
+            ],
+            [
+              15,
+              3
+            ],
+            [
+              16,
+              0
+            ],
+            [
+              17,
+              24
+            ],
+            [
+              17,
+              25
+            ],
+            [
+              18,
+              20
+            ],
+            [
+              19,
+              3
+            ],
+            [
+              20,
+              26
+            ],
+            [
+              20,
+              30
+            ],
+            [
+              24,
+              23
+            ]
+          ],
+          "gained": [
+            [
+              10,
+              31
+            ],
+            [
+              13,
+              2
+            ],
+            [
+              13,
+              8
+            ],
+            [
+              13,
+              14
+            ],
+            [
+              14,
+              2
+            ],
+            [
+              14,
+              3
+            ],
+            [
+              19,
+              9
+            ]
+          ],
+          "per_head_score_spearman": 0.7939115834041085
+        },
+        "copy": {
+          "jaccard": 0.8260869565217391,
+          "intersection": 19,
+          "union": 23,
+          "n_parent": 20,
+          "n_child": 22,
+          "lost": [
+            [
+              5,
+              9
+            ]
+          ],
+          "gained": [
+            [
+              13,
+              6
+            ],
+            [
+              14,
+              13
+            ],
+            [
+              27,
+              5
+            ]
+          ],
+          "per_head_score_spearman": 0.8485123945717371
+        }
+      },
+      "E11_function": {
+        "parent_knockout_drop": 0.6666666666666667,
+        "child_knockout_drop": 0.7692307692307692,
+        "delta_knockout_drop": 0.10256410256410242,
+        "parent_dissociation": 0.6641025641025642,
+        "child_dissociation": 0.764102564102564
+      },
+      "E12_frequency": {
+        "parent_freq_com": 0.1875,
+        "child_freq_com": 0.1875,
+        "delta_freq_com": 0.0,
+        "parent_freq_width": 0.0,
+        "child_freq_width": 0.0,
+        "parent_peak_drop": 0.025000000000000022,
+        "child_peak_drop": 0.008333333333333304,
+        "com_direction_preserved": true,
+        "parent_frequency_effect": 0.0,
+        "child_frequency_effect": 0.0,
+        "delta_frequency_effect": 0.0,
+        "frequency_effect_sign_preserved": true,
+        "parent_specificity_verdict": "ambiguous",
+        "child_specificity_verdict": "ambiguous"
+      },
+      "M7_utility": {
+        "parent_cohens_d": 0.1434916338617968,
+        "child_cohens_d": 0.1339477410681741,
+        "delta_cohens_d": -0.009543892793622721,
+        "sign_preserved": true,
+        "parent_verdict": "inconclusive",
+        "child_verdict": "inconclusive"
+      },
+      "E13_bridge": {
+        "delta_niah": 0.0,
+        "delta_ruler": 0.006944444444444531,
+        "delta_profile": {
+          "n_heads": -6,
+          "frac": -0.005859375,
+          "gini": 0.006928981199525008,
+          "layer_com": -0.025485013724741434,
+          "freq_com": 0.0,
+          "knockout_drop": 0.10256410256410242
+        }
+      },
+      "E15_localization": {
+        "recall_dropped": false,
+        "delta_niah": 0.0,
+        "head_jaccard": 0.8260869565217391,
+        "per_head_score_spearman": 0.8485123945717371,
+        "verdict": "no-recall-drop"
+      }
+    },
+    {
+      "lineage": "llama",
+      "parent": "llama31_8b_instruct",
+      "child": "llama31_8b_instruct_bnb4",
+      "same_architecture": true,
+      "E10_identity": {
+        "argmax": {
+          "jaccard": 0.6976744186046512,
+          "intersection": 30,
+          "union": 43,
+          "n_parent": 39,
+          "n_child": 34,
+          "lost": [
+            [
+              13,
+              13
+            ],
+            [
+              16,
+              21
+            ],
+            [
+              16,
+              25
+            ],
+            [
+              19,
+              0
+            ],
+            [
+              19,
+              9
+            ],
+            [
+              20,
+              1
+            ],
+            [
+              22,
+              13
+            ],
+            [
+              27,
+              6
+            ],
+            [
+              28,
+              15
+            ]
+          ],
+          "gained": [
+            [
+              13,
+              10
+            ],
+            [
+              13,
+              20
+            ],
+            [
+              13,
+              23
+            ],
+            [
+              20,
+              23
+            ]
+          ],
+          "per_head_score_spearman": 0.8604698802204843
+        },
+        "copy": {
+          "jaccard": 0.8260869565217391,
+          "intersection": 19,
+          "union": 23,
+          "n_parent": 22,
+          "n_child": 20,
+          "lost": [
+            [
+              14,
+              13
+            ],
+            [
+              16,
+              8
+            ],
+            [
+              27,
+              5
+            ]
+          ],
+          "gained": [
+            [
+              5,
+              9
+            ]
+          ],
+          "per_head_score_spearman": 0.9025770235720278
+        }
+      },
+      "E11_function": {
+        "parent_knockout_drop": 0.7692307692307692,
+        "child_knockout_drop": 0.8974358974358975,
+        "delta_knockout_drop": 0.1282051282051283,
+        "parent_dissociation": 0.764102564102564,
+        "child_dissociation": 0.8974358974358975
+      },
+      "E12_frequency": {
+        "parent_freq_com": 0.1875,
+        "child_freq_com": 0.1875,
+        "delta_freq_com": 0.0,
+        "parent_freq_width": 0.0,
+        "child_freq_width": 0.0,
+        "parent_peak_drop": 0.008333333333333304,
+        "child_peak_drop": 0.05833333333333335,
+        "com_direction_preserved": true,
+        "parent_frequency_effect": 0.0,
+        "child_frequency_effect": 0.0,
+        "delta_frequency_effect": 0.0,
+        "frequency_effect_sign_preserved": true,
+        "parent_specificity_verdict": "ambiguous",
+        "child_specificity_verdict": "ambiguous"
+      },
+      "M7_utility": {
+        "parent_cohens_d": 0.1339477410681741,
+        "child_cohens_d": -0.20015781085600073,
+        "delta_cohens_d": -0.3341055519241748,
+        "sign_preserved": false,
+        "parent_verdict": "inconclusive",
+        "child_verdict": "inconclusive"
+      },
+      "E13_bridge": {
+        "delta_niah": 0.0,
+        "delta_ruler": -0.04583333333333328,
+        "delta_profile": {
+          "n_heads": -5,
+          "frac": -0.0048828125,
+          "gini": 0.002483225183800064,
+          "layer_com": -0.011420792165343585,
+          "freq_com": 0.0,
+          "knockout_drop": 0.1282051282051283
+        }
+      },
+      "E15_localization": {
+        "recall_dropped": false,
+        "delta_niah": 0.0,
+        "head_jaccard": 0.8260869565217391,
+        "per_head_score_spearman": 0.9025770235720278,
+        "verdict": "no-recall-drop"
+      }
+    }
+  ],
+  "E14_quant_ablation": {
+    "reference": "llama31_8b_instruct",
+    "bnb4": {
+      "identity_jaccard": 0.8260869565217391,
+      "per_head_score_spearman": 0.9025770235720278,
+      "ref_frequency_effect": 0.0,
+      "quant_frequency_effect": 0.0,
+      "finding_sign_preserved": true
+    },
+    "awq4": null,
+    "gptq4": null
+  }
+}

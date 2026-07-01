@@ -1,0 +1,51 @@
+{
+  "seed_a": 42,
+  "seed_b": 123,
+  "test_retest": [
+    {
+      "metric": "n_heads",
+      "test_retest_spearman": 0.9999999999999999,
+      "n": 5
+    },
+    {
+      "metric": "frac",
+      "test_retest_spearman": 0.6668859288553503,
+      "n": 5
+    },
+    {
+      "metric": "gini",
+      "test_retest_spearman": 0.9999999999999999,
+      "n": 5
+    },
+    {
+      "metric": "zero_fraction",
+      "test_retest_spearman": 0.3,
+      "n": 5
+    },
+    {
+      "metric": "layer_com",
+      "test_retest_spearman": 0.9999999999999999,
+      "n": 5
+    },
+    {
+      "metric": "detector_jaccard",
+      "test_retest_spearman": 0.9999999999999999,
+      "n": 5
+    },
+    {
+      "metric": "freq_com",
+      "test_retest_spearman": 1.0,
+      "n": 4
+    },
+    {
+      "metric": "frequency_effect",
+      "test_retest_spearman": 0.9999999999999999,
+      "n": 5
+    },
+    {
+      "metric": "knockout_drop",
+      "test_retest_spearman": 0.8999999999999998,
+      "n": 5
+    }
+  ]
+}

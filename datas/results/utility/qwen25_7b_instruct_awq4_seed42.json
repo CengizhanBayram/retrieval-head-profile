@@ -1,0 +1,41 @@
+{
+  "model": "qwen25_7b_instruct_awq4",
+  "hf_id": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+  "family": "qwen",
+  "seed": 42,
+  "utility": {
+    "cohens_d": -0.30809792199702074,
+    "clustered_permutation_p": 0.023897610238976102,
+    "retrieval_mean": 32.73010240034623,
+    "non_retrieval_mean": 44.34658733676654,
+    "partial_spearman": -0.09862720956822338,
+    "partial_p": 0.005711559097076746,
+    "spearman_rho": -0.20096624454927628,
+    "hypothesis_supported": "H2 (retrieval heads lower-utility \u2014 degradation-consistent)",
+    "n_retrieval": 55,
+    "n_non_retrieval": 729
+  },
+  "elapsed_sec": 38.5,
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.35",
+    "packages": {
+      "torch": "2.11.0+cu128",
+      "transformers": "4.51.3",
+      "numpy": "2.0.2",
+      "scipy": "1.16.3",
+      "bitsandbytes": "not-installed",
+      "accelerate": "1.14.0",
+      "datasets": "4.0.0",
+      "huggingface_hub": "0.36.2"
+    },
+    "hardware": {
+      "gpu": "NVIDIA L4",
+      "vram_total_gb": 23.7,
+      "cuda_version": "12.8",
+      "n_gpus": 1
+    },
+    "git_commit": "e6c030e30a55adb0c12cef05cdc4cbab95a54880",
+    "git_dirty": false
+  }
+}

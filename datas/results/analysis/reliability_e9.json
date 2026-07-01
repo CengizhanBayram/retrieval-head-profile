@@ -1,0 +1,51 @@
+{
+  "seed_a": 42,
+  "seed_b": 123,
+  "reliability": [
+    {
+      "model": "gemma2_9b",
+      "argmax_jaccard": 0.9591836734693877,
+      "copy_jaccard": 0.8823529411764706,
+      "argmax_score_spearman": 0.9485562425537958,
+      "copy_score_spearman": 0.9459550553755287,
+      "seed_a": 42,
+      "seed_b": 123
+    },
+    {
+      "model": "llama31_8b",
+      "argmax_jaccard": 0.9361702127659575,
+      "copy_jaccard": 1.0,
+      "argmax_score_spearman": 0.9256215155614229,
+      "copy_score_spearman": 0.8911441225342418,
+      "seed_a": 42,
+      "seed_b": 123
+    },
+    {
+      "model": "llama32_3b",
+      "argmax_jaccard": 0.8611111111111112,
+      "copy_jaccard": 1.0,
+      "argmax_score_spearman": 0.928120558791651,
+      "copy_score_spearman": 0.9178092285866906,
+      "seed_a": 42,
+      "seed_b": 123
+    },
+    {
+      "model": "qwen25_3b",
+      "argmax_jaccard": 0.9302325581395349,
+      "copy_jaccard": 1.0,
+      "argmax_score_spearman": 0.9539947904174884,
+      "copy_score_spearman": 0.9123999626450541,
+      "seed_a": 42,
+      "seed_b": 123
+    },
+    {
+      "model": "qwen25_7b",
+      "argmax_jaccard": 0.9166666666666666,
+      "copy_jaccard": 0.9722222222222222,
+      "argmax_score_spearman": 0.9499229024856007,
+      "copy_score_spearman": 0.9218356503556776,
+      "seed_a": 42,
+      "seed_b": 123
+    }
+  ]
+}

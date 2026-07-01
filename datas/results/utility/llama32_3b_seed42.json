@@ -1,0 +1,41 @@
+{
+  "model": "llama32_3b",
+  "hf_id": "meta-llama/Llama-3.2-3B",
+  "family": "llama",
+  "seed": 42,
+  "utility": {
+    "cohens_d": -0.14234064379602085,
+    "clustered_permutation_p": 0.9805019498050195,
+    "retrieval_mean": 74270.91153492648,
+    "non_retrieval_mean": 75222.4257567594,
+    "partial_spearman": -0.18217534710034802,
+    "partial_p": 1.9985923376851275e-06,
+    "spearman_rho": -0.1351815641017936,
+    "hypothesis_supported": "inconclusive",
+    "n_retrieval": 34,
+    "n_non_retrieval": 638
+  },
+  "elapsed_sec": 58.8,
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.35",
+    "packages": {
+      "torch": "2.11.0+cu128",
+      "transformers": "4.47.0",
+      "numpy": "2.0.2",
+      "scipy": "1.16.3",
+      "bitsandbytes": "0.49.2",
+      "accelerate": "1.13.0",
+      "datasets": "4.0.0",
+      "huggingface_hub": "0.36.2"
+    },
+    "hardware": {
+      "gpu": "NVIDIA L4",
+      "vram_total_gb": 23.7,
+      "cuda_version": "12.8",
+      "n_gpus": 1
+    },
+    "git_commit": "36de7604c0488720ce31c5c7e2d1829c416fbd86",
+    "git_dirty": false
+  }
+}

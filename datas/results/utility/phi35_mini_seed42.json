@@ -1,0 +1,41 @@
+{
+  "model": "phi35_mini",
+  "hf_id": "microsoft/Phi-3.5-mini-instruct",
+  "family": "phi",
+  "seed": 42,
+  "utility": {
+    "cohens_d": NaN,
+    "clustered_permutation_p": 1.0,
+    "retrieval_mean": 0.0,
+    "non_retrieval_mean": 0.0,
+    "partial_spearman": NaN,
+    "partial_p": NaN,
+    "spearman_rho": NaN,
+    "hypothesis_supported": "inconclusive",
+    "n_retrieval": 89,
+    "n_non_retrieval": 935
+  },
+  "elapsed_sec": 34.4,
+  "environment": {
+    "python": "3.12.13",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.35",
+    "packages": {
+      "torch": "2.11.0+cu128",
+      "transformers": "4.47.0",
+      "numpy": "2.0.2",
+      "scipy": "1.16.3",
+      "bitsandbytes": "0.49.2",
+      "accelerate": "1.14.0",
+      "datasets": "4.0.0",
+      "huggingface_hub": "0.36.2"
+    },
+    "hardware": {
+      "gpu": "NVIDIA A100-SXM4-40GB",
+      "vram_total_gb": 42.4,
+      "cuda_version": "12.8",
+      "n_gpus": 1
+    },
+    "git_commit": "e6c030e30a55adb0c12cef05cdc4cbab95a54880",
+    "git_dirty": false
+  }
+}

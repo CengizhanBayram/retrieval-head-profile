@@ -1,2 +1,18 @@
-datas/
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Archives / scratch ---
+*.rar
+*.zip
+*.tar.gz
+
+# --- Paper stays PRIVATE (double-blind / not public yet) ---
+# The whole paper/ directory (LaTeX source, figures, bib) is intentionally
+# excluded from the public repo. Only the code and datas/results/ are published.
 paper/
+
+# --- NOTE ---
+# datas/  is intentionally TRACKED: the results JSONs are the point of this repo.
