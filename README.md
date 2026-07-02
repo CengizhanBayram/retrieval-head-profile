@@ -464,13 +464,7 @@ Apache-2.0/permissive; PG-19 per its dataset card. Cite each in any publication.
 ## Citation
 
 ```bibtex
-@misc{bayram2026retrievalprofile,
-  title  = {Retrieval Heads Survive Deployment: A Training-Free Mechanistic
-            Profile and Its Inheritance Through Instruction Tuning and
-            4-Bit Quantization},
-  author = {Bayram, Cengizhan},
-  year   = {2026},
-  note   = {Part 2 of the retrieval-head series}
+
 }
 ```
 
