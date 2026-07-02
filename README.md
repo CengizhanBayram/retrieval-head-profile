@@ -468,5 +468,3 @@ Apache-2.0/permissive; PG-19 per its dataset card. Cite each in any publication.
 }
 ```
 
-This is Part 2. Part 1 is *Does RoPE Prevent or Degrade Retrieval Heads? A
-Mechanistic Analysis Across Model Families* (companion paper).
