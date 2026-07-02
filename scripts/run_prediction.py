@@ -26,6 +26,13 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger("run_prediction")
 
 
+# Quantized rings are load-time variants of an instruct model, not independent
+# training runs, so they are excluded from the RQ2 panel by default (the canonical
+# prediction_e8.json is over the 18 independent base+instruct models). Pass
+# --include-rings to reproduce the prediction_e8_withrings.json comparison.
+RING_SUFFIXES = ("awq4", "gptq4", "bnb4")
+
+
 def parse_args():
     ap = argparse.ArgumentParser(description="E8 prediction + E9 test-retest.")
     ap.add_argument("--config", default="configs/panel.yaml")
@@ -34,11 +41,18 @@ def parse_args():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--retest-seed", type=int, default=None,
                     help="Second seed for the E9 test-retest (e.g. 123).")
+    ap.add_argument("--include-rings", action="store_true",
+                    help="Include the quantized rings (writes prediction_e8_withrings.json). "
+                         "Default excludes them -> the canonical prediction_e8.json.")
     return ap.parse_args()
 
 
-def collect(results_dir: Path, seed: int) -> list[dict]:
-    """Load + merge profile/behaviour results for every model at one seed."""
+def collect(results_dir: Path, seed: int, include_rings: bool = False) -> list[dict]:
+    """Load + merge profile/behaviour results for every model at one seed.
+
+    By default the quantized rings (``*_awq4/gptq4/bnb4``) are skipped: they are
+    not independent training runs, so they do not belong in the RQ2 panel.
+    """
     merged = []
     prof_dir = results_dir / "profile"
     if not prof_dir.exists():
@@ -47,6 +61,8 @@ def collect(results_dir: Path, seed: int) -> list[dict]:
         with open(pf, encoding="utf-8") as f:
             res = json.load(f)
         model = res.get("model")
+        if not include_rings and any(s in model for s in RING_SUFFIXES):
+            continue
         bf = results_dir / "behavior" / f"{model}_seed{seed}.json"
         if bf.exists():
             with open(bf, encoding="utf-8") as f:
@@ -71,14 +87,16 @@ def main():
     out_dir = results_dir / "analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    results = collect(results_dir, args.seed)
+    results = collect(results_dir, args.seed, include_rings=args.include_rings)
     if not results:
         logger.error("No profile results found under %s/profile for seed %d.", results_dir, args.seed)
         return
-    logger.info("E8 prediction analysis over %d models.", len(results))
+    out_name = "prediction_e8_withrings.json" if args.include_rings else "prediction_e8.json"
+    logger.info("E8 prediction analysis over %d models (%s rings) -> %s.",
+                len(results), "with" if args.include_rings else "without", out_name)
 
     analysis = run_prediction_analysis(results)
-    save_json(analysis, out_dir / "prediction_e8.json")
+    save_json(analysis, out_dir / out_name)
 
     # Console summary of the strongest correlations.
     sc = sorted(analysis["single_correlations"],

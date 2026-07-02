@@ -993,6 +993,226 @@
       "n_families": 7,
       "p_adjusted_bh": 0.013828930293852409,
       "significant_bh": true
+    },
+    {
+      "predictor": "n_heads",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": 0.04642383454426296,
+      "p_value": 0.8595672772349776,
+      "n_families": 7,
+      "p_adjusted_bh": 0.8595672772349776,
+      "significant_bh": false
+    },
+    {
+      "predictor": "frac",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": 0.2515508427098,
+      "p_value": 0.33008009533530835,
+      "n_families": 7,
+      "p_adjusted_bh": 0.6051468414480653,
+      "significant_bh": false
+    },
+    {
+      "predictor": "gini",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.17211373448565262,
+      "p_value": 0.5089029200825044,
+      "n_families": 7,
+      "p_adjusted_bh": 0.6219924578786165,
+      "significant_bh": false
+    },
+    {
+      "predictor": "zero_fraction",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.21858619073473687,
+      "p_value": 0.39930192788619245,
+      "n_families": 7,
+      "p_adjusted_bh": 0.6116031472924784,
+      "significant_bh": false
+    },
+    {
+      "predictor": "layer_com",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.1985927705603684,
+      "p_value": 0.4448022889399843,
+      "n_families": 7,
+      "p_adjusted_bh": 0.6116031472924784,
+      "significant_bh": false
+    },
+    {
+      "predictor": "detector_jaccard",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.4236645771954526,
+      "p_value": 0.09013956438011875,
+      "n_families": 7,
+      "p_adjusted_bh": 0.19830704163626126,
+      "significant_bh": false
+    },
+    {
+      "predictor": "freq_com",
+      "target": "niah_long",
+      "n": 10,
+      "within_family_spearman": -0.7115124735378854,
+      "p_value": 0.02102159968105799,
+      "n_families": 4,
+      "p_adjusted_bh": 0.10176858952567003,
+      "significant_bh": false
+    },
+    {
+      "predictor": "frequency_effect",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": 0.12322384966032718,
+      "p_value": 0.6375204979491246,
+      "n_families": 7,
+      "p_adjusted_bh": 0.701272547744037,
+      "significant_bh": false
+    },
+    {
+      "predictor": "knockout_drop",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": 0.5325292295842303,
+      "p_value": 0.027755069870637278,
+      "n_families": 7,
+      "p_adjusted_bh": 0.10176858952567003,
+      "significant_bh": false
+    },
+    {
+      "predictor": "utility_cohens_d",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.47662264934488413,
+      "p_value": 0.05307515213657778,
+      "n_families": 7,
+      "p_adjusted_bh": 0.14595666837558888,
+      "significant_bh": false
+    },
+    {
+      "predictor": "utility_partial_spearman",
+      "target": "niah_long",
+      "n": 17,
+      "within_family_spearman": -0.7149339740173263,
+      "p_value": 0.0012571754812593099,
+      "n_families": 7,
+      "p_adjusted_bh": 0.013828930293852409,
+      "significant_bh": true
+    },
+    {
+      "predictor": "n_heads",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": -0.46777774236470104,
+      "p_value": 0.050278081855255057,
+      "n_families": 8,
+      "p_adjusted_bh": 0.11061178008156111,
+      "significant_bh": false
+    },
+    {
+      "predictor": "frac",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": 0.00310880829015544,
+      "p_value": 0.9902320653225904,
+      "n_families": 8,
+      "p_adjusted_bh": 0.9902320653225906,
+      "significant_bh": false
+    },
+    {
+      "predictor": "gini",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": 0.14818652849740932,
+      "p_value": 0.5573231641039821,
+      "n_families": 8,
+      "p_adjusted_bh": 0.6811727561270893,
+      "significant_bh": false
+    },
+    {
+      "predictor": "zero_fraction",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": 0.030067396471497962,
+      "p_value": 0.905724503751556,
+      "n_families": 8,
+      "p_adjusted_bh": 0.9902320653225906,
+      "significant_bh": false
+    },
+    {
+      "predictor": "layer_com",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": 0.47357512953367875,
+      "p_value": 0.04712201749603128,
+      "n_families": 8,
+      "p_adjusted_bh": 0.11061178008156111,
+      "significant_bh": false
+    },
+    {
+      "predictor": "detector_jaccard",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": -0.2,
+      "p_value": 0.4262063652208641,
+      "n_families": 8,
+      "p_adjusted_bh": 0.5860337521786881,
+      "significant_bh": false
+    },
+    {
+      "predictor": "freq_com",
+      "target": "ruler_vartrack",
+      "n": 10,
+      "within_family_spearman": -0.6893123494842632,
+      "p_value": 0.027446067312172348,
+      "n_families": 4,
+      "p_adjusted_bh": 0.11061178008156111,
+      "significant_bh": false
+    },
+    {
+      "predictor": "frequency_effect",
+      "target": "ruler_vartrack",
+      "n": 17,
+      "within_family_spearman": -0.22346104753803284,
+      "p_value": 0.38860334158371523,
+      "n_families": 7,
+      "p_adjusted_bh": 0.5860337521786881,
+      "significant_bh": false
+    },
+    {
+      "predictor": "knockout_drop",
+      "target": "ruler_vartrack",
+      "n": 18,
+      "within_family_spearman": 0.5068097668893883,
+      "p_value": 0.03183306631442011,
+      "n_families": 8,
+      "p_adjusted_bh": 0.11061178008156111,
+      "significant_bh": false
+    },
+    {
+      "predictor": "utility_cohens_d",
+      "target": "ruler_vartrack",
+      "n": 17,
+      "within_family_spearman": -0.6981595092024541,
+      "p_value": 0.0018279808693164301,
+      "n_families": 7,
+      "p_adjusted_bh": 0.020107789562480733,
+      "significant_bh": true
+    },
+    {
+      "predictor": "utility_partial_spearman",
+      "target": "ruler_vartrack",
+      "n": 17,
+      "within_family_spearman": -0.2613496932515338,
+      "p_value": 0.3109427333406699,
+      "n_families": 7,
+      "p_adjusted_bh": 0.5700616777912282,
+      "significant_bh": false
     }
   ]
 }

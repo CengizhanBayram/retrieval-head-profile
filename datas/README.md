@@ -105,15 +105,23 @@ One file per lineage: `qwen.json`, `llama.json`, `gemma.json`, `mistral.json`.
 
 | File | Contents |
 |---|---|
-| `prediction_e8.json` | **canonical** RQ2 analysis over the 18 independent models: `single_correlations` (each predictor->target Spearman with BH-adjusted p and n), `family_demeaned` (the confound-controlled version), `loo_regression`, `loo_top3_predictors` |
-| `prediction_e8_withrings.json` | the same analysis but including the quantized rings (n up to 22); kept for comparison, **not** the headline (rings are not independent training runs) |
+| `prediction_e8.json` | **canonical** RQ2 analysis over the 18 independent models: `single_correlations` (each predictor->target Spearman with BH-adjusted p and n), `family_demeaned` (the confound-controlled version, stored for the three key targets `niah_maxlen` / `niah_long` / `ruler_vartrack`), `loo_regression`, `loo_top3_predictors` |
+| `prediction_e8_withrings.json` | the same analysis but including the quantized rings (n up to 23); kept for comparison, **not** the headline (rings are not independent training runs) |
 | `reliability_e9.json` | `R_self` = test-retest copy-Jaccard per model (the reliability ceiling for the inheritance threshold `0.8 * R_self`) |
 | `test_retest_e9.json` | the raw seed-a vs seed-b comparison behind `reliability_e9` |
 
-> RQ2 headline numbers come from `prediction_e8.json`: for
-> `utility_partial_spearman`, the correlation with the categorical `niah_maxlen`
-> is strong (rho = -0.85, n = 17) but the continuous `ruler_vartrack` correlation
-> is not significant after BH correction - the confound-limited null.
+Both files are regenerable from the per-model JSONs (no GPU):
+`python scripts/run_prediction.py --results-dir datas/results --seed 42`
+writes `prediction_e8.json` (rings excluded); add `--include-rings` for the
+`_withrings` variant.
+
+> RQ2 headline, all from `prediction_e8.json` (`utility_partial_spearman`):
+> the raw correlation with the categorical `niah_maxlen` is strong
+> (rho = -0.85, n = 17), and it survives family-demeaning (rho = -0.72,
+> p_bh = 0.014). But `niah_maxlen` **is** the context-window class, so this is the
+> confound. On the continuous `ruler_vartrack` target the raw correlation is
+> already not significant after BH (rho = -0.60, p_bh = 0.12), and family-demeaned
+> it vanishes (**rho = -0.26, p_bh = 0.57**). That is the confound-limited null.
 
 ---
 

@@ -50,6 +50,13 @@ ALL_PREDICTORS = PROFILE_PREDICTORS + UTILITY_PREDICTORS
 # primary target. `niah_maxlen` (largest context with recall ≥ 0.5) is the most
 # continuous long-context-ability target.
 BEHAVIOR_TARGETS = ["niah_maxlen", "niah_long", "ruler_multivalue", "ruler_vartrack"]
+# Targets for which we also report the within-family (family-demeaned)
+# correlation. niah_maxlen is the primary categorical long-context proxy;
+# niah_long and ruler_vartrack are the continuous targets that carry the RQ2
+# confound diagnosis (the raw correlation is confounded by context-window class,
+# so the within-family signal is the honest read). Each target is BH-corrected
+# across the predictor set independently.
+FAMILY_DEMEAN_TARGETS = ["niah_maxlen", "niah_long", "ruler_vartrack"]
 
 
 # ---------------------------------------------------------------------------
@@ -288,14 +295,23 @@ def run_prediction_analysis(
               .sort_values("absr", ascending=False))
     top3 = [p for p in ranked.predictor.tolist() if p in predictors][:3]
     loo = {t: loo_regression(df, top3, t) for t in targets} if top3 else {}
-    # Family-demeaned correlations, now WITH BH correction across the predictor
-    # set (was previously raw p only — a reviewer would reject "significant" on
-    # uncorrected p).
-    fam = [family_demeaned_correlation(df, p, primary) for p in predictors]
-    fam_bh = benjamini_hochberg([f.get("p_value", float("nan")) for f in fam])
-    for f, padj, rej in zip(fam, fam_bh["p_adjusted"], fam_bh["rejected"]):
-        f["p_adjusted_bh"] = padj
-        f["significant_bh"] = bool(rej)
+    # Family-demeaned correlations, WITH BH correction across the predictor set
+    # (was previously raw p only — a reviewer would reject "significant" on
+    # uncorrected p). Computed for every FAMILY_DEMEAN_TARGETS entry present, not
+    # just the primary, so the RQ2 confound diagnosis (niah_long, ruler_vartrack)
+    # is backed by stored numbers rather than a live figure re-computation. BH is
+    # applied within each target's predictor family independently.
+    demean_targets = [t for t in FAMILY_DEMEAN_TARGETS if t in df.columns]
+    if primary not in demean_targets and primary in df.columns:
+        demean_targets = [primary] + demean_targets
+    fam = []
+    for tgt in demean_targets:
+        fam_t = [family_demeaned_correlation(df, p, tgt) for p in predictors]
+        bh_t = benjamini_hochberg([f.get("p_value", float("nan")) for f in fam_t])
+        for f, padj, rej in zip(fam_t, bh_t["p_adjusted"], bh_t["rejected"]):
+            f["p_adjusted_bh"] = padj
+            f["significant_bh"] = bool(rej)
+        fam.extend(fam_t)
 
     return {
         "n_models": len(df),
