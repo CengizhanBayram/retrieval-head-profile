@@ -8,31 +8,35 @@
 #     n_layers, n_heads, head_dim, load_in_8bit, license) so the inherited
 #     src/model_loader.load_model() consumes it unchanged.
 #
-# REVISIONS ARE UNPINNED ("main") ON PURPOSE in this template. Before the
-# reportable run, replace each with an exact commit SHA (the loader warns while
-# a revision is "main"). Pre-screening (≈2–4 GPU-h/model) finalises the list.
+# ALL 23 ENTRIES ARE PINNED to explicit commit SHAs below (each "main" was
+# resolved to its Hugging Face commit SHA). Every pinned commit's config.json was
+# verified to carry the exact `theta` recorded here, so Table 1 is verbatim from
+# each model's published config.json at the pinned revision. (Llama-2-7B omits
+# rope_theta in its config and uses the architectural default of 10000.) The
+# loader warns only if a revision is ever reset to "main".
 #
 # `tier`: core | panel.  The 5 "core" models get 3 seeds and test-retest (E9);
 #         the rest get a single seed (proposal §5 / R5).
 # `quant`: only set on quantized rings (e.g. awq4 / gptq4) — drives the loader.
 #
 # PANEL SIZE: 18 base/instruct models below (8 families: llama, qwen, gemma,
-# mistral, olmo, phi, falcon, stablelm) + 2 quantized rings = 20 pinnable
-# entries. This is exactly the proposal §3.2 draft panel: 12 base families + 6
-# instruct/it derivatives that also serve the lineage chains (§3.4). All sit
-# ≤9 B so each loads alone in 8-bit on a 24 GB GPU. If §7's "18 points few"
-# statistical-power risk bites, the panel can be expanded (the proposal leaves
-# that path open); if the §4 budget bites, trim to the 14-model core.
+# mistral, olmo, phi, falcon, stablelm) + 5 quantized rings (qwen bnb4/awq4/gptq4,
+# llama bnb4, gemma bnb4) = 23 pinned entries. This is the proposal §3.2 draft
+# panel: 12 base families + 6 instruct/it derivatives that also serve the lineage
+# chains (§3.4). All sit ≤9 B so each loads alone in 8-bit on a 24 GB GPU. If §7's
+# "18 points few" statistical-power risk bites, the panel can be expanded (the
+# proposal leaves that path open); if the §4 budget bites, trim to the 14-model core.
 # ===========================================================================
 
 defaults:
   load_in_8bit: true
-  revision: "main"        # ← pin to a commit SHA before the reportable run
+  revision: "main"        # never used: every model below is pinned to a SHA
 
 models:
   # ---- Llama family ------------------------------------------------------
   llama32_3b:
     hf_id: "meta-llama/Llama-3.2-3B"
+    revision: "13afe5124825b4f3751f836b40dafda64c1ed062"
     theta: 500000
     n_layers: 28
     n_heads: 24
@@ -52,6 +56,7 @@ models:
     tier: "core"
   llama31_8b_instruct:
     hf_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    revision: "0e9e39f249a16976918f6564b8830bc894c89659"
     theta: 500000
     n_layers: 32
     n_heads: 32
@@ -72,6 +77,7 @@ models:
   # ---- Qwen family -------------------------------------------------------
   qwen25_3b:
     hf_id: "Qwen/Qwen2.5-3B"
+    revision: "3aab1f1954e9cc14eb9509a215f9e5ca08227a9b"
     theta: 1000000
     n_layers: 36
     n_heads: 16
@@ -91,6 +97,7 @@ models:
     tier: "core"
   qwen25_7b_instruct:
     hf_id: "Qwen/Qwen2.5-7B-Instruct"
+    revision: "a09a35458c702b33eeacc393d103063234e8bc28"
     theta: 1000000
     n_layers: 28
     n_heads: 28
@@ -100,6 +107,7 @@ models:
     tier: "panel"
   qwen25_3b_instruct:
     hf_id: "Qwen/Qwen2.5-3B-Instruct"
+    revision: "aa8e72537993ba99e69dfaafa59ed015b17504d1"
     theta: 1000000
     n_layers: 36
     n_heads: 16
@@ -110,6 +118,7 @@ models:
   # ---- Gemma family ------------------------------------------------------
   gemma2_2b:
     hf_id: "google/gemma-2-2b"
+    revision: "c5ebcd40d208330abc697524c919956e692655cf"
     theta: 10000
     n_layers: 26
     n_heads: 8
@@ -120,6 +129,7 @@ models:
     gpu: "a100"          # 256-dim heads → long-context behaviour OOMs on 24 GB
   gemma2_9b:
     hf_id: "google/gemma-2-9b"
+    revision: "33c193028431c2fde6c6e51f29e6f17b60cbfac6"
     theta: 10000
     n_layers: 42
     n_heads: 16
@@ -130,6 +140,7 @@ models:
     gpu: "a100"          # 256-dim heads, 42 layers → behaviour needs A100 (40 GB)
   gemma2_9b_it:
     hf_id: "google/gemma-2-9b-it"
+    revision: "11c9b309abf73637e4b6f9a3fa1e92e615547819"
     theta: 10000
     n_layers: 42
     n_heads: 16
@@ -141,6 +152,7 @@ models:
   # ---- Other families ----------------------------------------------------
   mistral7b_v03:
     hf_id: "mistralai/Mistral-7B-v0.3"
+    revision: "caa1feb0e54d415e2df31207e5f4e273e33509b1"
     theta: 1000000
     n_layers: 32
     n_heads: 32
@@ -150,6 +162,7 @@ models:
     tier: "panel"
   mistral7b_v03_instruct:
     hf_id: "mistralai/Mistral-7B-Instruct-v0.3"
+    revision: "c170c708c41dac9275d15a8fff4eca08d52bab71"
     theta: 1000000
     n_layers: 32
     n_heads: 32
@@ -169,6 +182,7 @@ models:
     tier: "panel"
   olmo2_7b_instruct:
     hf_id: "allenai/OLMo-2-1124-7B-Instruct"
+    revision: "470b1fba1ae01581f270116362ee4aa1b97f4c84"
     theta: 500000
     n_layers: 32
     n_heads: 32
@@ -178,6 +192,7 @@ models:
     tier: "panel"
   phi35_mini:
     hf_id: "microsoft/Phi-3.5-mini-instruct"
+    revision: "2fe192450127e6a83f7441aef6e3ca586c338b77"
     theta: 10000
     n_layers: 32
     n_heads: 32
@@ -187,6 +202,7 @@ models:
     tier: "panel"
   falcon3_7b:
     hf_id: "tiiuae/Falcon3-7B-Base"
+    revision: "bf3d7ed586cb22a921520e2d681a9d3d7642cde8"
     theta: 1000042
     n_layers: 28
     n_heads: 12
@@ -197,6 +213,7 @@ models:
     gpu: "a100"          # 256-dim heads → long-context behaviour safer on A100
   stablelm2_elle:
     hf_id: "stabilityai/stablelm-2-1_6b"
+    revision: "f499ead74c53749bd93cebc6ce8bc0d7bdf1eaef"
     theta: 10000
     n_layers: 24
     n_heads: 32
@@ -215,6 +232,7 @@ quant_models:
   # (bnb NF4) quant-inheritance result. In the active qwen chain below.
   qwen25_7b_instruct_bnb4:
     hf_id: "Qwen/Qwen2.5-7B-Instruct"
+    revision: "a09a35458c702b33eeacc393d103063234e8bc28"
     quant: "bnb4"
     theta: 1000000
     n_layers: 28
@@ -230,6 +248,7 @@ quant_models:
   # compatible stack (tf 4.51 + gptqmodel/autoawq); kept here for that run.
   qwen25_7b_instruct_awq4:
     hf_id: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+    revision: "b25037543e9394b818fdfca67ab2a00ecc7dd641"
     quant: "awq4"
     theta: 1000000
     n_layers: 28
@@ -239,6 +258,7 @@ quant_models:
     family: "qwen"
   qwen25_7b_instruct_gptq4:
     hf_id: "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4"
+    revision: "e9c932ac1893a49ae0fc497ad6e1e86e2e39af20"
     quant: "gptq4"
     theta: 1000000
     n_layers: 28
@@ -248,6 +268,7 @@ quant_models:
     family: "qwen"
   llama31_8b_instruct_bnb4:
     hf_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    revision: "0e9e39f249a16976918f6564b8830bc894c89659"
     quant: "bnb4"
     theta: 500000
     n_layers: 32
@@ -257,6 +278,7 @@ quant_models:
     family: "llama"
   gemma2_9b_it_bnb4:
     hf_id: "google/gemma-2-9b-it"
+    revision: "11c9b309abf73637e4b6f9a3fa1e92e615547819"
     quant: "bnb4"
     theta: 10000
     n_layers: 42
